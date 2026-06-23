@@ -1,0 +1,64 @@
+/* LayoutWrapper.module.css */
+
+.container {
+    display: flex;
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.sidebar {
+    width: 250px;
+    background-color: #1a1a2e;
+    color: white;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+.logo {
+    font-size: 24px;
+    margin-bottom: 30px;
+    color: #4a6cf7;
+}
+
+.menu {
+    list-style: none;
+    padding: 0;
+}
+
+.menuItem {
+    padding: 12px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 5px;
+}
+
+.menuItem:hover {
+    background-color: #2d2d44;
+}
+
+.menuItemActive {
+    padding: 12px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    background-color: #4a6cf7;
+}
+
+.menuItemLogout {
+    padding: 12px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 5px;
+    color: #dc3545;
+    margin-top: 20px;
+}
+
+.menuItemLogout:hover {
+    background-color: #2d2d44;
+}
+
+.main {
+    flex: 1;
+    padding: 30px;
+    background-color: #f0f2f5;
+}
