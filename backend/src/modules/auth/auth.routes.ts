@@ -1,13 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import path from 'path';
-import { 
-    register, 
-    login, 
-    getVendors, 
-    updateVendorStatus 
-} from '../controllers/authController';
-import { protect, isAdmin } from '../middleware/auth';
+import { register, login } from './auth.controller'; // Updated Imports
 
 const router = Router();
 
@@ -47,11 +40,5 @@ router.post('/register', upload.fields([
 
 // Login
 router.post('/login', login);
-
-// ============================================
-// ADMIN ROUTES
-// ============================================
-router.get('/vendors', protect, isAdmin, getVendors);
-router.put('/vendor/:id/status', protect, isAdmin, updateVendorStatus);
 
 export default router;

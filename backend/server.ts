@@ -2,7 +2,8 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './routes/authRoutes';
+import authRoutes from './modules/auth/auth.routes';
+import adminRoutes from './modules/admin/admin.routes';
 
 dotenv.config();
 
@@ -17,13 +18,16 @@ app.use(cors({
 app.use(express.json());
 
 // ============================================
-// REGISTER ROUTES
+// REGISTER MODULE ROUTES
 // ============================================
 app.use('/api/auth', authRoutes);
 
+// Taki aap ka frontend route bilkul break na ho aur `/api/auth/vendors` wahi kaam kare
+app.use('/api/auth', adminRoutes); 
+
 // Root route
 app.get('/', (req, res) => {
-    res.json({ message: 'DigitalRawalpindi API is running!' });
+    res.json({ message: 'DigitalRawalpindi API is running perfectly in Modular Architecture!' });
 });
 
 // MongoDB Connection
@@ -36,6 +40,6 @@ app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`📝 Register: POST /api/auth/register`);
     console.log(`🔑 Login: POST /api/auth/login`);
-    console.log(`📋 Vendors: GET /api/auth/vendors (Admin only)`);
-    console.log(`📝 Update Vendor: PUT /api/auth/vendor/:id/status (Admin only)`);
+    console.log(`📋 Vendors: GET /api/auth/vendors (Protected Admin Module)`);
+    console.log(`📝 Update Vendor: PUT /api/auth/vendor/:id/status (Protected Admin Module)`);
 });
