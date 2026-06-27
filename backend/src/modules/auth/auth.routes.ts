@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { register, login } from './auth.controller'; // Updated Imports
+import { register, login, forgotPassword, resetPassword } from './auth.controller.js'; // Updated Imports (Added resetPassword)
 
 const router = Router();
 
@@ -40,5 +40,11 @@ router.post('/register', upload.fields([
 
 // Login
 router.post('/login', login);
+
+// Forgot Password (OTP Generation & Email Sending)
+router.post('/forgot-password', forgotPassword);
+
+// Reset Password (OTP Verification & Database Update)
+router.post('/reset-password', resetPassword);
 
 export default router;

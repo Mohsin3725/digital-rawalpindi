@@ -2,13 +2,13 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import authRoutes from './modules/auth/auth.routes.ts';
-import adminRoutes from './modules/admin/admin.routes';
+import authRoutes from './src/modules/auth/auth.routes.js'; // <--- Aakhir me .js lazmi lagayein
+import adminRoutes from './src/modules/admin/admin.routes.js';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 
 // Middleware
 app.use(cors({
@@ -38,8 +38,9 @@ mongoose.connect(process.env.MONGO_URI!)
 // Start Server
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log(`📝 Register: POST /api/auth/register`);
+    console.log(`... Register: POST /api/auth/register`);
     console.log(`🔑 Login: POST /api/auth/login`);
+    console.log(`🔒 Forgot Password: POST /api/auth/forgot-password`);
     console.log(`📋 Vendors: GET /api/auth/vendors (Protected Admin Module)`);
     console.log(`📝 Update Vendor: PUT /api/auth/vendor/:id/status (Protected Admin Module)`);
 });

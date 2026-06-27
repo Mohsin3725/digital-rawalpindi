@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getVendors, updateVendorStatus } from './admin.controller';
-import { protect, restrictTo } from '../auth/auth.middleware';
+import { getVendors, updateVendorStatus } from './admin.controller.js';
+import { protect, restrictTo } from '../auth/auth.middleware.js';
 
 const router = Router();
 

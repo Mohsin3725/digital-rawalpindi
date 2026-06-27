@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
-import User from './User.model'; // Updated Relative Import
+import User from './User.model.js'; // Relative Import
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 
 // ============================================
 // REGISTER
@@ -140,5 +141,131 @@ export const login = async (req: Request, res: Response) => {
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+    }
+};
+
+// ============================================
+// FORGOT PASSWORD (REAL EMAIL/OTP CONFIGURATION)
+// ============================================
+// ============================================
+// FORGOT PASSWORD (SECURE NODEMAILER CONFIG)
+// ============================================
+// ============================================
+// FORGOT PASSWORD (SECURE & ULTIMATE GMAIL)
+// ============================================
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+        
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: '❌ User with this email does not exist.'
+            });
+        }
+
+        // Generate 6-Digit Code
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Gmail Direct Secure Transport Config
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            host: 'smtp.gmail.com',
+            port: 465,
+            secure: true, // SSL Config
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS,
+            },
+            tls: {
+                rejectUnauthorized: false // Local host blocks bypass karne k liye
+            }
+        });
+
+        const mailOptions = {
+            from: `"Digital Rawalpindi Support" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: '🔑 Digital Rawalpindi - Password Reset OTP',
+            html: `
+                <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; max-width: 600px; border-radius: 8px; margin: 0 auto;">
+                    <h2 style="color: #4f46e5; text-align: center;">Digital Rawalpindi</h2>
+                    <hr style="border: 0; border-top: 1px solid #eee;" />
+                    <p>Aapne password reset karne ki request ki hai. Aapka 6-digit verification OTP code niche diya gaya hai:</p>
+                    <div style="font-size: 28px; font-weight: bold; padding: 15px; background: #f3f4f6; text-align: center; letter-spacing: 6px; color: #1e1b4b; border-radius: 6px; margin: 20px 0;">
+                        ${otp}
+                    </div>
+                    <p style="font-size: 14px; color: #374151;">Yeh OTP code security wajah se valid hai.</p>
+                    <p style="margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #eee; padding-top: 10px;">
+                        Agar yeh request aapne nahi ki, to is email ko ignore karein.
+                    </p>
+                </div>
+            `,
+        };
+
+        await transporter.sendMail(mailOptions);
+
+        return res.json({
+            success: true,
+            message: '✅ OTP code sent successfully to your email inbox!'
+        });
+
+    } catch (error: any) {
+        console.error("Nodemailer Error Details:", error);
+        return res.status(500).json({ 
+            success: false, 
+            message: '❌ Failed to send email. Server error: ' + error.message 
+        });
+    }
+};
+// ============================================
+// RESET PASSWORD (VERIFY & UPDATE DB)
+// ============================================
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "❌ All fields (Email, OTP, and New Password) are required." 
+            });
+        }
+
+        // 1. Database me user check karo
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "❌ User not found." 
+            });
+        }
+
+        // 2. OTP Validation Check
+        if (otp.length !== 6) {
+            return res.status(400).json({ 
+                success: false, 
+                message: "❌ Invalid OTP code. It must be exactly 6 digits." 
+            });
+        }
+
+        // 3. New Password hashing process
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+        // 4. Update password on Database schema
+        user.password = hashedPassword;
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "✅ Password updated successfully! Moving you back to login screen."
+        });
+
+    } catch (error: any) {
+        return res.status(500).json({ 
+            success: false, 
+            message: "Server error during password reset: " + error.message 
+        });
     }
 };

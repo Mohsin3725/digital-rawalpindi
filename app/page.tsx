@@ -2,8 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import styles from './home.module.css';
+import { Suspense, useState } from 'react';
 
-const roles = [
+interface Role {
+    id: 'admin' | 'vendor' | 'customer' | 'rider';
+    label: string;
+    icon: string;
+    color: string;
+    description: string;
+}
+
+const roles: Role[] = [
     { id: 'admin', label: 'Admin', icon: '🛒', color: '#dc3545', description: 'Manage the platform' },
     { id: 'vendor', label: 'Vendor', icon: '🏪', color: '#28a745', description: 'Sell your products' },
     { id: 'customer', label: 'Customer', icon: '🛍️', color: '#4a6cf7', description: 'Shop & buy' },
@@ -13,7 +22,7 @@ const roles = [
 export default function HomePage() {
     const router = useRouter();
 
-    const handleRoleClick = (roleId: string) => {
+    const handleRoleClick = (roleId: Role['id']) => {
         router.push(`/auth/login?role=${roleId}`);
     };
 
@@ -33,13 +42,14 @@ export default function HomePage() {
                         <div
                             key={role.id}
                             className={styles.card}
-                            style={{ borderTop: `5px solid ${role.color}` }}
                             onClick={() => handleRoleClick(role.id)}
+                            /* FIX: Inline style ki bajaye humne ek CSS Variable pass kiya jo pure card layout me use ho sake */
+                            style={{ '--role-color': role.color } as React.CSSProperties}
                         >
                             <div className={styles.cardIcon}>{role.icon}</div>
                             <h3 className={styles.cardTitle}>{role.label}</h3>
                             <p className={styles.cardDesc}>{role.description}</p>
-                            <span className={styles.cardArrow} style={{ color: role.color }}>→</span>
+                            <span className={styles.cardArrow}>→</span>
                         </div>
                     ))}
                 </div>

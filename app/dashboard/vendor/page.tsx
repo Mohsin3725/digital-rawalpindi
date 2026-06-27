@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from './vendor.module.css';
 
@@ -9,10 +9,12 @@ import styles from './vendor.module.css';
 // ============================================
 interface User {
     id: string;
+    
     name: string;
     email: string;
     phone: string;
     role: string;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
 }
 
 interface Order {
@@ -46,13 +48,13 @@ export default function VendorDashboardPage() {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('dashboard');
-    
+
     // Subscription State
     const [subscription, setSubscription] = useState({
         plan: 'trial',
         daysLeft: 30
     });
-    
+
     // Orders State
     const [orders, setOrders] = useState<Order[]>([
         { id: '#ORD-001', customer: 'Ali Khan', amount: 'PKR 2,500', status: 'Pending', date: '2024-01-15' },
@@ -60,20 +62,20 @@ export default function VendorDashboardPage() {
         { id: '#ORD-003', customer: 'Usman Malik', amount: 'PKR 3,200', status: 'Ready for Pickup', date: '2024-01-13' },
         { id: '#ORD-004', customer: 'Fatima Ali', amount: 'PKR 5,000', status: 'Delivered', date: '2024-01-12' },
     ]);
-    
+
     // Employees State
     const [employees, setEmployees] = useState<Employee[]>([
         { id: '1', name: 'Ahmed Hussain', email: 'ahmed@example.com', role: 'Inventory Manager' },
         { id: '2', name: 'Sadia Khan', email: 'sadia@example.com', role: 'Order Fulfillment' },
     ]);
-    
+
     // Products State
     const [products] = useState<Product[]>([
         { id: '1', name: 'Wireless Headphones', price: 'PKR 2,500', stock: 45, status: 'Active' },
         { id: '2', name: 'Smart Watch', price: 'PKR 8,000', stock: 12, status: 'Active' },
         { id: '3', name: 'Phone Case', price: 'PKR 500', stock: 0, status: 'Out of Stock' },
     ]);
-    
+
     // Store Hours State
     const [storeHours, setStoreHours] = useState({
         monday: { open: '09:00', close: '18:00' },
@@ -84,61 +86,78 @@ export default function VendorDashboardPage() {
         saturday: { open: '10:00', close: '16:00' },
         sunday: { open: '', close: '' },
     });
-    
+
     // Modal States
     const [showAddProduct, setShowAddProduct] = useState(false);
     const [showAddEmployee, setShowAddEmployee] = useState(false);
     const [showWithdraw, setShowWithdraw] = useState(false);
 
     // ============================================
-    // USE EFFECT
+    // USE EFFECT - WITH APPROVAL STATUS CHECK
     // ============================================
     useEffect(() => {
-        let isMounted = true;
+        const token = localStorage.getItem('token');
+        const userData = localStorage.getItem('user');
 
-        queueMicrotask(() => {
-            const token = localStorage.getItem('token');
-            const userData = localStorage.getItem('user');
+        if (!token) {
+            router.push('/auth/login');
+            setLoading(false);
+            return;
+        }
 
-            if (!token) {
+        try {
+            const parsedUser = JSON.parse(userData || '{}') as User;
+            
+            // ✅ Check if user is a vendor
+            if (parsedUser.role !== 'vendor') {
                 router.push('/auth/login');
-                if (isMounted) setLoading(false);
+                setLoading(false);
                 return;
             }
 
-            try {
-                const parsedUser = JSON.parse(userData || '{}') as User;
-                if (parsedUser.role !== 'vendor') {
-                    router.push('/auth/login');
-                    return;
-                }
-                if (isMounted) setUser(parsedUser);
-            } catch {
+            // ✅ Check if vendor is approved
+            if (parsedUser.approvalStatus === 'pending') {
+                alert('⏳ Your account is pending admin approval. Please wait for approval.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
                 router.push('/auth/login');
-            } finally {
-                if (isMounted) setLoading(false);
+                setLoading(false);
+                return;
             }
-        });
 
-        return () => {
-            isMounted = false;
-        };
+            if (parsedUser.approvalStatus === 'rejected') {
+                alert('❌ Your account has been rejected. Please contact support for more information.');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                router.push('/auth/login');
+                setLoading(false);
+                return;
+            }
+
+            // ✅ User is approved, set user data
+            setUser(parsedUser);
+        } catch (error) {
+            console.error('Error parsing user data:', error);
+            router.push('/auth/login');
+        } finally {
+            setLoading(false);
+        }
     }, [router]);
 
     // ============================================
     // HANDLERS
     // ============================================
-    const handleLogout = () => {
+    const handleLogout = useCallback(() => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         router.push('/auth/login');
-    };
+    }, [router]);
 
-    const handleTabChange = (tab: string) => {
+    const handleTabChange = useCallback((tab: string) => {
         setActiveTab(tab);
-    };
+    }, []);
 
-    const handleSubscribe = (plan: string) => {
+    const handleSubscribe = useCallback((plan: string) => {
         if (plan === 'monthly') {
             setSubscription({ plan: 'monthly', daysLeft: 30 });
         } else if (plan === 'yearly') {
@@ -147,61 +166,162 @@ export default function VendorDashboardPage() {
             setSubscription({ plan: 'trial', daysLeft: 30 });
         }
         alert(`✅ Subscribed to ${plan} plan successfully!`);
-    };
+    }, []);
 
-    const handleOrderStatusChange = (orderId: string, newStatus: string) => {
-        setOrders(prev => prev.map(order => 
+    const handleOrderStatusChange = useCallback((orderId: string, newStatus: string) => {
+        setOrders(prev => prev.map(order =>
             order.id === orderId ? { ...order, status: newStatus } : order
         ));
         alert(`✅ Order ${orderId} status updated to: ${newStatus}`);
-    };
+    }, []);
 
-    const handleAddProduct = (e: React.FormEvent) => {
+    const handleAddProduct = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         alert('✅ Product added successfully!');
         setShowAddProduct(false);
-    };
+    }, []);
 
-    const handleAddEmployee = (e: React.FormEvent) => {
+    const handleAddEmployee = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         alert('✅ Employee added successfully!');
         setShowAddEmployee(false);
-    };
+    }, []);
 
-    const handleWithdraw = (e: React.FormEvent) => {
+    const handleWithdraw = useCallback((e: React.FormEvent) => {
         e.preventDefault();
         alert('✅ Withdrawal request submitted!');
         setShowWithdraw(false);
-    };
+    }, []);
 
-    const handleStoreHoursChange = (day: string, type: 'open' | 'close', value: string) => {
+    const handleStoreHoursChange = useCallback((day: string, type: 'open' | 'close', value: string) => {
         setStoreHours(prev => ({
             ...prev,
             [day]: { ...prev[day as keyof typeof prev], [type]: value }
         }));
-    };
+    }, []);
 
-    const handleDeleteEmployee = (employeeId: string) => {
+    const handleDeleteEmployee = useCallback((employeeId: string) => {
         if (confirm('Are you sure you want to delete this employee?')) {
             setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
             alert('✅ Employee removed successfully!');
         }
-    };
+    }, []);
 
-    const handleDeleteProduct = (_productId: string) => {
+    const handleDeleteProduct = useCallback((productId: string) => {
         if (confirm('Are you sure you want to delete this product?')) {
             alert('✅ Product deleted successfully!');
         }
-    };
+    }, []);
+
+    // ============================================
+    // MODAL RENDER FUNCTIONS
+    // ============================================
+    const renderAddProductModal = useCallback(() => {
+        if (!showAddProduct) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowAddProduct(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <div className={styles.modalHeader}>
+                        <h3 className={styles.modalTitle}>Add New Product</h3>
+                        <button className={styles.modalClose} onClick={() => setShowAddProduct(false)}>×</button>
+                    </div>
+                    <form onSubmit={handleAddProduct}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Product Name</label>
+                            <input type="text" className={styles.formInput} placeholder="Enter product name" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Price</label>
+                            <input type="text" className={styles.formInput} placeholder="PKR 1,000" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Stock Quantity</label>
+                            <input type="number" className={styles.formInput} placeholder="Enter stock" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Description</label>
+                            <textarea className={styles.formTextarea} rows={3} placeholder="Product description"></textarea>
+                        </div>
+                        <button type="submit" className={styles.primaryBtn}>Add Product</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showAddProduct, handleAddProduct]);
+
+    const renderAddEmployeeModal = useCallback(() => {
+        if (!showAddEmployee) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowAddEmployee(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <div className={styles.modalHeader}>
+                        <h3 className={styles.modalTitle}>Add Employee</h3>
+                        <button className={styles.modalClose} onClick={() => setShowAddEmployee(false)}>×</button>
+                    </div>
+                    <form onSubmit={handleAddEmployee}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Full Name</label>
+                            <input type="text" className={styles.formInput} placeholder="Enter full name" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Email</label>
+                            <input type="email" className={styles.formInput} placeholder="Enter email" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Role</label>
+                            <select className={styles.formSelect}>
+                                <option>Inventory Manager</option>
+                                <option>Order Fulfillment</option>
+                                <option>Customer Support</option>
+                            </select>
+                        </div>
+                        <button type="submit" className={styles.primaryBtn}>Add Employee</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showAddEmployee, handleAddEmployee]);
+
+    const renderWithdrawModal = useCallback(() => {
+        if (!showWithdraw) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowWithdraw(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <div className={styles.modalHeader}>
+                        <h3 className={styles.modalTitle}>Request Withdrawal</h3>
+                        <button className={styles.modalClose} onClick={() => setShowWithdraw(false)}>×</button>
+                    </div>
+                    <form onSubmit={handleWithdraw}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Available Balance</label>
+                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>PKR 35,000</p>
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Amount to Withdraw</label>
+                            <input type="number" className={styles.formInput} placeholder="Enter amount" required />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Bank Account</label>
+                            <select className={styles.formSelect}>
+                                <option>Bank Account - IBAN: PK123456789</option>
+                                <option>EasyPaisa - 03001234567</option>
+                                <option>JazzCash - 03001234567</option>
+                            </select>
+                        </div>
+                        <button type="submit" className={styles.successBtn}>Submit Request</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showWithdraw, handleWithdraw]);
 
     // ============================================
     // RENDER FUNCTIONS
     // ============================================
-    const renderSubscription = () => (
+    const renderSubscription = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>📋 Subscription Plan</h2>
             <div className={styles.subscriptionCard}>
-                {/* Free Trial */}
                 <div className={`${styles.planCard} ${subscription.plan === 'trial' ? styles.planCardActive : ''}`}>
                     <div className={styles.planBadge}>Current Plan</div>
                     <h3 className={styles.planName}>Free Trial</h3>
@@ -211,7 +331,7 @@ export default function VendorDashboardPage() {
                         <li>✓ 50 Products</li>
                         <li>✓ Basic Support</li>
                     </ul>
-                    <button 
+                    <button
                         className={styles.secondaryBtn}
                         onClick={() => handleSubscribe('trial')}
                         disabled={subscription.plan === 'trial'}
@@ -220,7 +340,6 @@ export default function VendorDashboardPage() {
                     </button>
                 </div>
 
-                {/* Monthly */}
                 <div className={`${styles.planCard} ${subscription.plan === 'monthly' ? styles.planCardActive : ''}`}>
                     <h3 className={styles.planName}>Monthly</h3>
                     <p className={styles.planPrice}>PKR 1,000 <span>/month</span></p>
@@ -229,7 +348,7 @@ export default function VendorDashboardPage() {
                         <li>✓ Priority Support</li>
                         <li>✓ Advanced Analytics</li>
                     </ul>
-                    <button 
+                    <button
                         className={subscription.plan === 'monthly' ? styles.successBtn : styles.primaryBtn}
                         onClick={() => handleSubscribe('monthly')}
                         disabled={subscription.plan === 'monthly'}
@@ -238,7 +357,6 @@ export default function VendorDashboardPage() {
                     </button>
                 </div>
 
-                {/* Yearly */}
                 <div className={`${styles.planCard} ${subscription.plan === 'yearly' ? styles.planCardActive : ''}`}>
                     <h3 className={styles.planName}>Yearly</h3>
                     <p className={styles.planPrice}>PKR 10,000 <span>/year</span></p>
@@ -247,7 +365,7 @@ export default function VendorDashboardPage() {
                         <li>✓ 2 Months Free</li>
                         <li>✓ VIP Support</li>
                     </ul>
-                    <button 
+                    <button
                         className={subscription.plan === 'yearly' ? styles.successBtn : styles.primaryBtn}
                         onClick={() => handleSubscribe('yearly')}
                         disabled={subscription.plan === 'yearly'}
@@ -257,9 +375,9 @@ export default function VendorDashboardPage() {
                 </div>
             </div>
         </div>
-    );
+    ), [subscription, handleSubscribe]);
 
-    const renderOrders = () => (
+    const renderOrders = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>📦 Orders</h2>
             <div className={styles.tableContainer}>
@@ -292,7 +410,7 @@ export default function VendorDashboardPage() {
                                     </span>
                                 </td>
                                 <td>
-                                    <select 
+                                    <select
                                         className={styles.formSelect}
                                         value={order.status}
                                         onChange={(e) => handleOrderStatusChange(order.id, e.target.value)}
@@ -310,9 +428,9 @@ export default function VendorDashboardPage() {
                 </table>
             </div>
         </div>
-    );
+    ), [orders, handleOrderStatusChange]);
 
-    const renderEmployees = () => (
+    const renderEmployees = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>👥 Employees</h2>
             <button className={styles.primaryBtn} onClick={() => setShowAddEmployee(true)}>
@@ -334,24 +452,24 @@ export default function VendorDashboardPage() {
                 ))}
             </div>
         </div>
-    );
+    ), [employees, handleDeleteEmployee]);
 
-    const renderStoreHours = () => (
+    const renderStoreHours = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🕐 Store Hours</h2>
             <div className={styles.hoursGrid}>
                 {Object.entries(storeHours).map(([day, hours]) => (
                     <div key={day} className={styles.hoursRow}>
                         <span className={styles.hoursDay}>{day.charAt(0).toUpperCase() + day.slice(1)}</span>
-                        <input 
-                            type="time" 
+                        <input
+                            type="time"
                             className={styles.hoursInput}
                             value={hours.open}
                             onChange={(e) => handleStoreHoursChange(day, 'open', e.target.value)}
                         />
                         <span>to</span>
-                        <input 
-                            type="time" 
+                        <input
+                            type="time"
                             className={styles.hoursInput}
                             value={hours.close}
                             onChange={(e) => handleStoreHoursChange(day, 'close', e.target.value)}
@@ -363,9 +481,9 @@ export default function VendorDashboardPage() {
                 Save Hours
             </button>
         </div>
-    );
+    ), [storeHours, handleStoreHoursChange]);
 
-    const renderProducts = () => (
+    const renderProducts = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>📦 Products</h2>
             <button className={styles.primaryBtn} onClick={() => setShowAddProduct(true)}>
@@ -406,9 +524,9 @@ export default function VendorDashboardPage() {
                 </table>
             </div>
         </div>
-    );
+    ), [products, handleDeleteProduct]);
 
-    const renderWithdraw = () => (
+    const renderWithdraw = useCallback(() => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>💰 Earnings & Withdrawals</h2>
             <div className={styles.statsGrid} style={{ marginBottom: '20px' }}>
@@ -429,109 +547,7 @@ export default function VendorDashboardPage() {
                 Request Withdrawal
             </button>
         </div>
-    );
-
-    // ============================================
-    // MODALS
-    // ============================================
-    const renderAddProductModal = () => {
-        if (!showAddProduct) return null;
-        return (
-            <div className={styles.modalOverlay} onClick={() => setShowAddProduct(false)}>
-                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.modalHeader}>
-                        <h3 className={styles.modalTitle}>Add New Product</h3>
-                        <button className={styles.modalClose} onClick={() => setShowAddProduct(false)}>×</button>
-                    </div>
-                    <form onSubmit={handleAddProduct}>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Product Name</label>
-                            <input type="text" className={styles.formInput} required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Price</label>
-                            <input type="text" className={styles.formInput} placeholder="PKR 1,000" required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Stock Quantity</label>
-                            <input type="number" className={styles.formInput} required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Description</label>
-                            <textarea className={styles.formTextarea} rows={3}></textarea>
-                        </div>
-                        <button type="submit" className={styles.primaryBtn}>Add Product</button>
-                    </form>
-                </div>
-            </div>
-        );
-    };
-
-    const renderAddEmployeeModal = () => {
-        if (!showAddEmployee) return null;
-        return (
-            <div className={styles.modalOverlay} onClick={() => setShowAddEmployee(false)}>
-                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.modalHeader}>
-                        <h3 className={styles.modalTitle}>Add Employee</h3>
-                        <button className={styles.modalClose} onClick={() => setShowAddEmployee(false)}>×</button>
-                    </div>
-                    <form onSubmit={handleAddEmployee}>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Full Name</label>
-                            <input type="text" className={styles.formInput} required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Email</label>
-                            <input type="email" className={styles.formInput} required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Role</label>
-                            <select className={styles.formSelect}>
-                                <option>Inventory Manager</option>
-                                <option>Order Fulfillment</option>
-                                <option>Customer Support</option>
-                            </select>
-                        </div>
-                        <button type="submit" className={styles.primaryBtn}>Add Employee</button>
-                    </form>
-                </div>
-            </div>
-        );
-    };
-
-    const renderWithdrawModal = () => {
-        if (!showWithdraw) return null;
-        return (
-            <div className={styles.modalOverlay} onClick={() => setShowWithdraw(false)}>
-                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                    <div className={styles.modalHeader}>
-                        <h3 className={styles.modalTitle}>Request Withdrawal</h3>
-                        <button className={styles.modalClose} onClick={() => setShowWithdraw(false)}>×</button>
-                    </div>
-                    <form onSubmit={handleWithdraw}>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Available Balance</label>
-                            <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>PKR 35,000</p>
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Amount to Withdraw</label>
-                            <input type="number" className={styles.formInput} placeholder="Enter amount" required />
-                        </div>
-                        <div className={styles.formGroup}>
-                            <label className={styles.formLabel}>Bank Account</label>
-                            <select className={styles.formSelect}>
-                                <option>Bank Account - IBAN: PK123456789</option>
-                                <option>EasyPaisa - 03001234567</option>
-                                <option>JazzCash - 03001234567</option>
-                            </select>
-                        </div>
-                        <button type="submit" className={styles.successBtn}>Submit Request</button>
-                    </form>
-                </div>
-            </div>
-        );
-    };
+    ), []);
 
     // ============================================
     // MAIN RENDER
@@ -582,7 +598,6 @@ export default function VendorDashboardPage() {
                     <p>Welcome back, {user.name}!</p>
                 </div>
 
-                {/* Dashboard Tab */}
                 {activeTab === 'dashboard' && (
                     <>
                         <div className={styles.statsGrid}>
@@ -609,26 +624,28 @@ export default function VendorDashboardPage() {
                         </div>
                         <div className={styles.actions}>
                             <button className={styles.primaryBtn} onClick={() => handleTabChange('products')}>
-                                Manage Products
+                                + Add New Product
                             </button>
                             <button className={styles.secondaryBtn} onClick={() => handleTabChange('orders')}>
-                                View Orders
+                                View All Orders
                             </button>
-                            <button className={styles.successBtn} onClick={() => handleTabChange('earnings')}>
-                                Withdraw Earnings
+                            <button className={styles.successBtn} onClick={() => handleTabChange('subscription')}>
+                                View Subscription
                             </button>
                         </div>
+                        {renderSubscription()}
                     </>
                 )}
 
                 {activeTab === 'products' && renderProducts()}
                 {activeTab === 'orders' && renderOrders()}
-                {activeTab === 'earnings' && renderWithdraw()}
                 {activeTab === 'employees' && renderEmployees()}
                 {activeTab === 'hours' && renderStoreHours()}
                 {activeTab === 'subscription' && renderSubscription()}
+                {activeTab === 'earnings' && renderWithdraw()}
             </div>
 
+            {/* Modals */}
             {renderAddProductModal()}
             {renderAddEmployeeModal()}
             {renderWithdrawModal()}

@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import User from '../auth/User.model'; // Auth module se model share ho raha hai
+import User from '../auth/User.model.js'; // Auth module se model share ho raha hai
 
 // ============================================
 // GET ALL VENDORS (ADMIN ONLY)

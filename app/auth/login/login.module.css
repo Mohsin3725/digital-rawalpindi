@@ -85,6 +85,27 @@
     border-color: #4a6cf7;
 }
 
+.forgotContainer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: -4px;
+}
+
+.forgotBtn {
+    background: none;
+    border: none;
+    color: #4a6cf7;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+}
+
+.forgotBtn:hover {
+    text-decoration: underline;
+}
+
 .roleLabel {
     font-size: 14px;
     font-weight: 600;
@@ -141,6 +162,21 @@
 .button:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+}
+
+.cancelBtn {
+    background: none;
+    border: none;
+    color: #6c757d;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 5px;
+    font-family: inherit;
+}
+
+.cancelBtn:hover {
+    text-decoration: underline;
 }
 
 .footer {
