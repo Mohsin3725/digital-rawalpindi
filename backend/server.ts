@@ -1,10 +1,18 @@
+// backend/server.ts
+
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';  // ✅ Add this
+import { fileURLToPath } from 'url';  // ✅ Add this
 import authRoutes from './src/modules/auth/auth.routes.js';
 import adminRoutes from './src/modules/admin/admin.routes.js';
-import riderRoutes from './src/modules/rider/rider.routes.js'; // ✅ IMPORTANT
+import vendorRoutes from './src/modules/vendor/vendor.routes.js';
+
+// ✅ For __dirname in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -17,13 +25,15 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ============================================
-// REGISTER ALL ROUTES - YEH IMPORTANT HAI
-// ============================================
-app.use('/api/auth', authRoutes);
-app.use('/api/auth', adminRoutes);
-app.use('/api/auth', riderRoutes); // ✅ YEH HONA CHAHIYE
+// ✅ Serve static files from uploads folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Register Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/vendor', vendorRoutes);
+
+// Root route
 app.get('/', (req, res) => {
     res.json({ message: 'DigitalRawalpindi API is running!' });
 });
@@ -36,9 +46,8 @@ mongoose.connect(process.env.MONGO_URI!)
 
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
-    console.log('✅ Routes registered:');
-    console.log('   - GET  /api/auth/rider/profile');
-    console.log('   - GET  /api/auth/rider/deliveries');
-    console.log('   - GET  /api/auth/rider/stats');
-    console.log('   - GET  /api/auth/rider/status');
+    console.log(`🔑 Auth: /api/auth`);
+    console.log(`📋 Admin: /api/admin`);
+    console.log(`📦 Vendor: /api/vendor`);
+    console.log(`📁 Uploads: /uploads`);  // ✅ Added
 });

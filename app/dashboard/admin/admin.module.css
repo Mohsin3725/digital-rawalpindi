@@ -7,7 +7,9 @@
     background-color: #f0f2f5;
 }
 
-/* Sidebar */
+/* ============================================
+   SIDEBAR
+   ============================================ */
 .sidebar {
     width: 250px;
     background-color: #1a1a2e;
@@ -64,7 +66,9 @@
     background-color: #2d2d44;
 }
 
-/* Main Content */
+/* ============================================
+   MAIN CONTENT
+   ============================================ */
 .main {
     flex: 1;
     padding: 30px;
@@ -83,7 +87,9 @@
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
-/* Stats Grid */
+/* ============================================
+   STATS GRID
+   ============================================ */
 .statsGrid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -116,7 +122,9 @@
     color: #28a745;
 }
 
-/* Section */
+/* ============================================
+   SECTION & TABLE
+   ============================================ */
 .section {
     background-color: white;
     padding: 25px;
@@ -140,51 +148,6 @@
     gap: 15px;
 }
 
-/* Buttons */
-.primaryBtn {
-    padding: 10px 20px;
-    background-color: #4a6cf7;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.primaryBtn:hover {
-    background-color: #3a5bd9;
-}
-
-.successBtn {
-    padding: 10px 20px;
-    background-color: #28a745;
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-}
-
-.successBtn:hover {
-    background-color: #218838;
-}
-
-.dangerBtn {
-    padding: 8px 16px;
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    font-size: 12px;
-}
-
-.dangerBtn:hover {
-    background-color: #c82333;
-}
-
-/* Table */
 .tableContainer {
     overflow-x: auto;
 }
@@ -208,11 +171,14 @@
     color: #555;
 }
 
-/* Status Badges */
+/* ============================================
+   STATUS BADGES
+   ============================================ */
 .statusBadge {
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 12px;
+    font-weight: 600;
     display: inline-block;
 }
 
@@ -231,7 +197,201 @@
     color: #721c24;
 }
 
-/* Forms input configs */
+/* ============================================
+   BUTTONS
+   ============================================ */
+.primaryBtn {
+    padding: 10px 20px;
+    background-color: #4a6cf7;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.primaryBtn:hover {
+    background-color: #3a5bd9;
+}
+
+.successBtn {
+    padding: 10px 20px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.successBtn:hover {
+    background-color: #218838;
+}
+
+.dangerBtn {
+    padding: 8px 16px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dangerBtn:hover {
+    background-color: #c82333;
+}
+
+.secondaryBtn {
+    padding: 10px 20px;
+    background-color: #f0f2f5;
+    color: #333;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+.secondaryBtn:hover {
+    background-color: #e0e0e0;
+}
+
+/* ============================================
+   GRID CARDS
+   ============================================ */
+.employeeGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 20px;
+}
+
+.employeeCard {
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.02);
+}
+
+.employeeIcon {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.employeeName {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.employeeRole {
+    font-size: 13px;
+    color: #6c757d;
+}
+
+.employeeEmail {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.commissionGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.commissionCard {
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.commissionName {
+    font-weight: 600;
+    color: #1a1a2e;
+}
+
+.commissionValue {
+    font-weight: 700;
+    color: #4a6cf7;
+}
+
+.commissionDesc {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.couponGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.couponCard {
+    background-color: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.couponCode {
+    font-weight: bold;
+    color: #4a6cf7;
+    background-color: #eef2ff;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+
+.couponDiscount {
+    font-size: 14px;
+    color: #28a745;
+    font-weight: 600;
+}
+
+.couponExpiry {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+/* ============================================
+   ANNOUNCEMENTS
+   ============================================ */
+.announcementItem {
+    border-bottom: 1px solid #edf2f7;
+    padding: 15px 0;
+}
+
+.announcementTitle {
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.announcementContent {
+    color: #555;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.announcementDate {
+    font-size: 12px;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+/* ============================================
+   FORM
+   ============================================ */
 .formGroup {
     margin-bottom: 15px;
     display: flex;
@@ -245,87 +405,279 @@
     color: #333;
 }
 
-.formInput, .formSelect, .formTextarea {
+.formInput,
+.formSelect,
+.formTextarea {
     padding: 10px;
     border: 1px solid #ccc;
     border-radius: 6px;
     font-size: 14px;
     width: 100%;
+    box-sizing: border-box;
 }
 
-/* Employee & Commissions grids */
-.employeeGrid, .couponGrid {
+.formInput:focus,
+.formSelect:focus,
+.formTextarea:focus {
+    border-color: #4a6cf7;
+    outline: none;
+}
+
+/* ============================================
+   VENDOR DETAIL MODAL
+   ============================================ */
+.detailGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.detailItem {
+    display: flex;
+    flex-direction: column;
+}
+
+.detailLabel {
+    font-weight: 600;
+    font-size: 12px;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.detailValue {
+    margin: 0;
+    padding: 6px 0;
+    color: #1a1a2e;
+    font-weight: 500;
+}
+
+.detailFull {
+    grid-column: 1 / -1;
+}
+
+/* CNIC Section */
+.cnicSection {
+    margin: 20px 0;
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 10px;
+}
+
+.cnicTitle {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0 0 15px 0;
+}
+
+.cnicContainer {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 20px;
 }
 
-.commissionGrid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 20px;
+.cnicBox {
+    display: flex;
+    flex-direction: column;
 }
 
-.employeeCard, .couponCard, .commissionCard {
-    background-color: #fff;
-    border: 1px solid #e2e8f0;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+.cnicLabel {
+    font-weight: 600;
+    font-size: 13px;
+    color: #333;
+    margin-bottom: 8px;
 }
 
-.employeeIcon {
-    font-size: 32px;
-    margin-bottom: 10px;
+.cnicImageWrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
 }
 
-.employeeName {
-    font-size: 16px;
-    font-weight: 700;
+.cnicImage {
+    width: 100%;
+    height: 180px;
+    object-fit: contain;
+    border-radius: 10px;
+    border: 2px solid #e0e0e0;
+    background-color: white;
+    padding: 5px;
+    transition: transform 0.3s ease;
 }
 
-.couponCode {
-    font-weight: bold;
-    color: #4a6cf7;
-    background-color: #eef2ff;
-    padding: 4px 8px;
-    border-radius: 4px;
+.cnicImage:hover {
+    transform: scale(1.02);
 }
 
-.announcementItem {
-    border-bottom: 1px solid #edf2f7;
-    padding: 15px 0;
+.cnicViewBtn {
+    display: inline-block;
+    padding: 6px 16px;
+    background-color: #4a6cf7;
+    color: white;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    transition: background-color 0.3s ease;
+    text-align: center;
 }
 
-.announcementTitle {
-    font-weight: 700;
-    font-size: 16px;
+.cnicViewBtn:hover {
+    background-color: #3a5bd9;
+    color: white;
 }
 
-/* Modal Styling */
+.cnicEmpty {
+    padding: 30px 10px;
+    text-align: center;
+    color: #6c757d;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    border: 2px dashed #ddd;
+    font-size: 14px;
+}
+
+.modalActions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* ============================================
+   MODAL
+   ============================================ */
 .modalOverlay {
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(0,0,0,0.4);
+    background-color: rgba(0, 0, 0, 0.6);
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 9999;
+    z-index: 1000;
 }
 
 .modal {
-    background: #fff;
-    padding: 25px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    background-color: white;
+    padding: 30px;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 650px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal::-webkit-scrollbar {
+    width: 6px;
+}
+
+.modal::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.modal::-webkit-scrollbar-thumb {
+    background: #4a6cf7;
+    border-radius: 10px;
+}
+
+.modalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
 }
 
 .modalTitle {
-    margin-top: 0;
-    font-size: 18px;
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0;
+}
+
+.modalClose {
+    background: none;
+    border: none;
+    font-size: 28px;
+    cursor: pointer;
+    color: #6c757d;
+    transition: color 0.3s ease;
+    padding: 0 5px;
+}
+
+.modalClose:hover {
+    color: #dc3545;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 768px) {
+    .cnicContainer {
+        grid-template-columns: 1fr;
+    }
+
+    .detailGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .modal {
+        padding: 20px;
+        max-width: 95%;
+        margin: 10px;
+    }
+
+    .modalActions {
+        flex-direction: column;
+    }
+
+    .cnicImage {
+        height: 140px;
+    }
+
+    .statsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .modal {
+        padding: 15px;
+    }
+
+    .cnicImage {
+        height: 120px;
+    }
+
+    .modalTitle {
+        font-size: 18px;
+    }
+
+    .statsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        width: 60px;
+        padding: 10px;
+    }
+
+    .logo {
+        font-size: 16px;
+    }
+
+    .menuItem {
+        padding: 10px;
+        font-size: 12px;
+    }
 }
