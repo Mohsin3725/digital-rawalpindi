@@ -19,7 +19,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5002;
 
-// Middleware
 app.use(cors({
     origin: ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
     credentials: true
@@ -39,12 +38,12 @@ app.get('/', (req, res) => {
     res.json({ message: 'DigitalRawalpindi API is running!' });
 });
 
-// MongoDB Connection
+console.log('✅ Server starting...');
+
 mongoose.connect(process.env.MONGO_URI!)
     .then(() => console.log('✅ MongoDB connected'))
     .catch(err => console.error('❌ MongoDB error:', err.message));
 
-// Start Server
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`🔑 Auth: /api/auth`);

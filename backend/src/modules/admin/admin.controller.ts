@@ -1,551 +1,408 @@
 import { Request, Response } from 'express';
-import User from '../auth/User.model.js';
-import Product from '../vendor/Product.model.js';
-import Employee from '../vendor/Employee.model.js';
-import mongoose from 'mongoose';
+import User from '../auth/User.model.js'; 
+import Employer from './Employer.model.js';       
+import Commission from './Commission.model.js';   
+import Coupon from './Coupon.model.js'; 
+import Announcement from './Announcement.model.js';
 
 // ============================================
-// GET ALL VENDORS (ADMIN ONLY)
+// VENDORS, RIDERS, CUSTOMERS CONTROLLERS
 // ============================================
-export const getVendors = async (req: Request, res: Response): Promise<any> => {
+
+// ============================================
+// GET VENDORS (WITH IMAGE PATH FIX)
+// ============================================
+export const getVendors = async (req: Request, res: Response) => {
     try {
-        console.log('📋 Fetching vendors...');
         const vendors = await User.find({ role: 'vendor' })
             .select('-password')
             .sort({ createdAt: -1 });
 
-        console.log(`📋 Found ${vendors.length} vendors`);
+        console.log('📋 Found vendors:', vendors.length);
 
-        // Get product counts for each vendor
-        const vendorIds = vendors.map(v => v._id);
-        const productCounts = await Product.aggregate([
-            { $match: { vendorId: { $in: vendorIds } } },
-            { $group: { _id: '$vendorId', count: { $sum: 1 } } }
-        ]);
+        const formattedVendors = vendors.map((vendor: any) => {
+            // ✅ FIX: Sirf filename return karo
+            const getFileName = (path: string | undefined) => {
+                if (!path) return null;
+                // Agar path mein /uploads/ hai toh sirf filename lo
+                if (path.includes('/uploads/')) {
+                    return path.split('/uploads/').pop() || path.split('/').pop() || path;
+                }
+                if (path.includes('uploads/')) {
+                    return path.split('uploads/').pop() || path;
+                }
+                return path;
+            };
 
-        const countMap: any = {};
-        productCounts.forEach(item => {
-            countMap[item._id.toString()] = item.count;
-        });
-
-        const formattedVendors = vendors.map((vendor: any) => ({
-            id: vendor._id,
-            shopName: vendor.shopName || vendor.name + "'s Shop",
-            ownerName: vendor.name,
-            email: vendor.email,
-            phone: vendor.phone,
-            status: vendor.approvalStatus || 'pending',
-            subscriptionPlan: vendor.subscriptionPlan || 'free',
-            subscriptionStatus: vendor.subscriptionStatus || 'active',
-            trialEndDate: vendor.trialEndDate,
-            hasRequestedExtension: vendor.hasRequestedExtension || false,
-            totalProducts: countMap[vendor._id.toString()] || 0,
-            totalEarnings: vendor.totalEarnings || 0,
-            totalOrdersCount: vendor.totalOrdersCount || 0,
-            date: vendor.createdAt ? new Date(vendor.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            cnicFront: vendor.cnicFront || null,
-            cnicBack: vendor.cnicBack || null,
-            shopAddress: vendor.shopAddress || 'Not provided',
-            isActive: vendor.isActive !== undefined ? vendor.isActive : true
-        }));
-
-        res.json({ success: true, vendors: formattedVendors });
-    } catch (error: any) {
-        console.error('❌ Error fetching vendors:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// UPDATE VENDOR STATUS (ADMIN ONLY)
-// ============================================
-export const updateVendorStatus = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { id } = req.params;
-        const { status } = req.body;
-
-        console.log(`📝 Updating vendor ${id} to ${status}`);
-
-        if (!['approved', 'rejected'].includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid status. Must be "approved" or "rejected"'
-            });
-        }
-
-        const vendor = await User.findOneAndUpdate(
-            { _id: id, role: 'vendor' },
-            { approvalStatus: status },
-            { new: true }
-        ).select('-password');
-
-        if (!vendor) {
-            return res.status(404).json({
-                success: false,
-                message: 'Vendor not found'
-            });
-        }
-
-        console.log(`✅ Vendor ${vendor.name} ${status} successfully`);
-
-        res.json({
-            success: true,
-            message: `Vendor ${status} successfully`,
-            vendor: {
+            return {
                 id: vendor._id,
-                name: vendor.name,
-                shopName: vendor.shopName,
-                email: vendor.email,
-                status: vendor.approvalStatus
-            }
-        });
-    } catch (error: any) {
-        console.error('❌ Error updating vendor status:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// GET VENDOR DETAILS (ADMIN ONLY)
-// ============================================
-export const getVendorDetails = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { id } = req.params;
-
-        const vendor = await User.findOne({ _id: id, role: 'vendor' })
-            .select('-password');
-
-        if (!vendor) {
-            return res.status(404).json({
-                success: false,
-                message: 'Vendor not found'
-            });
-        }
-
-        // Get products
-        const products = await Product.find({ vendorId: id });
-        
-        // Get employees
-        const employees = await Employee.find({ vendorId: id });
-
-        // Calculate trial days remaining
-        let trialDaysRemaining = 0;
-        if (vendor.subscriptionPlan === 'free' && vendor.trialEndDate) {
-            const diffTime = new Date(vendor.trialEndDate).getTime() - new Date().getTime();
-            trialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        res.json({
-            success: true,
-            vendor: {
-                id: vendor._id,
-                name: vendor.name,
+                shopName: vendor.shopName || vendor.name + "'s Shop",
+                ownerName: vendor.name,
                 email: vendor.email,
                 phone: vendor.phone,
-                shopName: vendor.shopName,
-                shopAddress: vendor.shopAddress,
-                cnicFront: vendor.cnicFront,
-                cnicBack: vendor.cnicBack,
-                approvalStatus: vendor.approvalStatus,
-                subscriptionPlan: vendor.subscriptionPlan,
-                subscriptionStatus: vendor.subscriptionStatus,
-                trialStartDate: vendor.trialStartDate,
-                trialEndDate: vendor.trialEndDate,
-                trialDaysRemaining: trialDaysRemaining,
-                hasRequestedExtension: vendor.hasRequestedExtension,
-                totalEarnings: vendor.totalEarnings,
-                availableBalance: vendor.availableBalance,
-                pendingWithdrawals: vendor.pendingWithdrawals,
-                totalOrdersCount: vendor.totalOrdersCount,
-                isActive: vendor.isActive,
-                products: products.map(p => ({
-                    id: p._id,
-                    name: p.productName,
-                    price: p.price,
-                    stock: p.stockQuantity,
-                    status: p.status
-                })),
-                employees: employees.map(e => ({
-                    id: e._id,
-                    name: e.employeeName,
-                    email: e.email,
-                    role: e.role
-                })),
-                createdAt: vendor.createdAt,
-                updatedAt: vendor.updatedAt
-            }
-        });
-    } catch (error: any) {
-        console.error('❌ Error fetching vendor details:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// GET PENDING SUBSCRIPTION REQUESTS (ADMIN ONLY)
-// ============================================
-export const getPendingSubscriptionRequests = async (req: Request, res: Response): Promise<any> => {
-    try {
-        console.log('📋 Fetching pending subscription requests...');
-
-        const vendors = await User.find({
-            role: 'vendor',
-            subscriptionStatus: 'pending_approval'
-        }).select('-password').sort({ updatedAt: -1 });
-
-        console.log(`📋 Found ${vendors.length} pending requests`);
-
-        const formattedRequests = vendors.map((vendor: any) => ({
-            id: vendor._id,
-            name: vendor.name,
-            email: vendor.email,
-            phone: vendor.phone,
-            shopName: vendor.shopName || vendor.name + "'s Shop",
-            subscriptionPlan: vendor.subscriptionPlan || 'free',
-            hasRequestedExtension: vendor.hasRequestedExtension || false,
-            extensionRequestDate: vendor.extensionRequestDate,
-            requestType: vendor.hasRequestedExtension ? 'Trial Extension' : 'Subscription Upgrade',
-            currentTrialDaysRemaining: vendor.getTrialDaysRemaining ? vendor.getTrialDaysRemaining() : 0,
-            trialEndDate: vendor.trialEndDate,
-            requestedAt: vendor.updatedAt,
-            approvalStatus: vendor.approvalStatus
-        }));
-
-        res.json({
-            success: true,
-            requests: formattedRequests,
-            total: formattedRequests.length
-        });
-    } catch (error: any) {
-        console.error('❌ Error fetching subscription requests:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// APPROVE/REJECT SUBSCRIPTION REQUEST (ADMIN ONLY)
-// ============================================
-export const approveSubscriptionRequest = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { vendorId } = req.params;
-        const { action, extensionDays, adminNotes } = req.body;
-
-        // Validate action
-        if (!['approve', 'reject'].includes(action)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid action. Must be "approve" or "reject"'
-            });
-        }
-
-        const vendor = await User.findOne({ _id: vendorId, role: 'vendor' });
-        if (!vendor) {
-            return res.status(404).json({
-                success: false,
-                message: 'Vendor not found'
-            });
-        }
-
-        // Check if vendor has a pending request
-        if (vendor.subscriptionStatus !== 'pending_approval') {
-            return res.status(400).json({
-                success: false,
-                message: 'Vendor does not have any pending subscription request'
-            });
-        }
-
-        if (action === 'reject') {
-            // Reject the request
-            await User.findByIdAndUpdate(vendorId, {
-                subscriptionStatus: 'none',
-                hasRequestedExtension: false,
-                extensionRequestDate: null,
-                extensionApproved: false
-            });
-
-            return res.json({
-                success: true,
-                message: '❌ Subscription request rejected successfully',
-                vendor: {
-                    id: vendor._id,
-                    name: vendor.name,
-                    email: vendor.email,
-                    subscriptionStatus: 'none'
-                }
-            });
-        }
-
-        // APPROVE LOGIC
-        const updateData: any = {
-            subscriptionStatus: 'active',
-            extensionApproved: true
-        };
-
-        // Check if it's a trial extension request
-        if (vendor.hasRequestedExtension) {
-            // Extend trial by specified days (default 15)
-            const days = extensionDays || 15;
-            const newEndDate = new Date();
-            newEndDate.setDate(newEndDate.getDate() + days);
-
-            updateData.trialEndDate = newEndDate;
-            updateData.hasRequestedExtension = false;
-            updateData.extensionRequestDate = null;
-            updateData.extensionDaysGranted = days;
-            updateData.subscriptionPlan = 'free'; // Keep as free trial
-
-            await User.findByIdAndUpdate(vendorId, updateData);
-
-            return res.json({
-                success: true,
-                message: `✅ Trial extended by ${days} days successfully!`,
-                vendor: {
-                    id: vendor._id,
-                    name: vendor.name,
-                    email: vendor.email,
-                    subscriptionPlan: 'free',
-                    subscriptionStatus: 'active',
-                    newTrialEndDate: newEndDate,
-                    extensionDaysGranted: days
-                }
-            });
-        } else {
-            // Approve paid subscription upgrade
-            const plan = vendor.subscriptionPlan || 'monthly';
-            
-            // Set expiry based on plan
-            const expiryDate = new Date();
-            if (plan === 'monthly') {
-                expiryDate.setMonth(expiryDate.getMonth() + 1);
-            } else if (plan === 'yearly') {
-                expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-            }
-
-            updateData.subscriptionPlan = plan;
-            updateData.subscriptionStatus = 'active';
-            updateData.trialStartDate = new Date();
-            updateData.trialEndDate = expiryDate;
-            updateData.hasRequestedExtension = false;
-            updateData.extensionRequestDate = null;
-
-            await User.findByIdAndUpdate(vendorId, updateData);
-
-            return res.json({
-                success: true,
-                message: `✅ ${plan} subscription approved and activated!`,
-                vendor: {
-                    id: vendor._id,
-                    name: vendor.name,
-                    email: vendor.email,
-                    subscriptionPlan: plan,
-                    subscriptionStatus: 'active',
-                    expiryDate: expiryDate
-                }
-            });
-        }
-    } catch (error: any) {
-        console.error('❌ Error processing subscription request:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// GET SUBSCRIPTION STATISTICS (ADMIN ONLY)
-// ============================================
-export const getSubscriptionStatistics = async (req: Request, res: Response): Promise<any> => {
-    try {
-        // Get counts by subscription plan
-        const planStats = await User.aggregate([
-            { $match: { role: 'vendor' } },
-            { $group: {
-                _id: '$subscriptionPlan',
-                count: { $sum: 1 }
-            }}
-        ]);
-
-        // Get counts by subscription status
-        const statusStats = await User.aggregate([
-            { $match: { role: 'vendor' } },
-            { $group: {
-                _id: '$subscriptionStatus',
-                count: { $sum: 1 }
-            }}
-        ]);
-
-        // Get vendors with trial ending soon (3 days or less)
-        const threeDaysFromNow = new Date();
-        threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
-
-        const trialEndingSoon = await User.countDocuments({
-            role: 'vendor',
-            subscriptionPlan: 'free',
-            subscriptionStatus: 'active',
-            trialEndDate: { 
-                $lte: threeDaysFromNow,
-                $gte: new Date()
-            }
-        });
-
-        // Get vendors with expired trials
-        const expiredTrials = await User.countDocuments({
-            role: 'vendor',
-            subscriptionPlan: 'free',
-            subscriptionStatus: 'active',
-            trialEndDate: { $lt: new Date() }
-        });
-
-        // Get pending requests count
-        const pendingRequests = await User.countDocuments({
-            role: 'vendor',
-            subscriptionStatus: 'pending_approval'
-        });
-
-        // Get total vendors
-        const totalVendors = await User.countDocuments({ role: 'vendor' });
-
-        const planMap: any = {};
-        planStats.forEach(item => {
-            planMap[item._id] = item.count;
-        });
-
-        const statusMap: any = {};
-        statusStats.forEach(item => {
-            statusMap[item._id] = item.count;
-        });
-
-        res.json({
-            success: true,
-            statistics: {
-                totalVendors,
-                pendingRequests,
-                byPlan: {
-                    free: planMap['free'] || 0,
-                    monthly: planMap['monthly'] || 0,
-                    yearly: planMap['yearly'] || 0
-                },
-                byStatus: {
-                    active: statusMap['active'] || 0,
-                    pending_approval: statusMap['pending_approval'] || 0,
-                    none: statusMap['none'] || 0,
-                    expired: statusMap['expired'] || 0
-                },
-                trialEndingSoon,
-                expiredTrials,
-                timestamp: new Date()
-            }
-        });
-    } catch (error: any) {
-        console.error('❌ Error fetching subscription statistics:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// GET VENDOR ANALYTICS (ADMIN ONLY)
-// ============================================
-export const getVendorAnalytics = async (req: Request, res: Response): Promise<any> => {
-    try {
-        // Get product count per vendor
-        const productStats = await Product.aggregate([
-            { $group: { _id: '$vendorId', count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: 10 }
-        ]);
-
-        // Get vendor IDs with product counts
-        const vendorIds = productStats.map(item => item._id);
-        const vendors = await User.find({ _id: { $in: vendorIds }, role: 'vendor' })
-            .select('name shopName email totalEarnings totalOrdersCount');
-
-        const analytics = productStats.map(item => {
-            const vendor = vendors.find(v => v._id.toString() === item._id.toString());
-            return {
-                vendorId: item._id,
-                vendorName: vendor ? vendor.name : 'Unknown',
-                shopName: vendor ? vendor.shopName : 'Unknown Shop',
-                email: vendor ? vendor.email : 'Unknown',
-                productCount: item.count,
-                totalEarnings: vendor ? vendor.totalEarnings : 0,
-                totalOrders: vendor ? vendor.totalOrdersCount : 0
+                status: vendor.approvalStatus || 'pending',
+                date: vendor.createdAt ? new Date(vendor.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+                cnicFront: getFileName(vendor.cnicFront),
+                cnicBack: getFileName(vendor.cnicBack),
+                businessLicense: getFileName(vendor.businessLicense),
+                shopAddress: vendor.shopAddress || 'Not provided',
+                ntnNumber: vendor.ntnNumber || null
             };
         });
 
         res.json({
             success: true,
-            analytics
+            vendors: formattedVendors
         });
     } catch (error: any) {
-        console.error('❌ Error fetching vendor analytics:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+        console.error('❌ Error fetching vendors:', error.message);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
     }
 };
 
 // ============================================
-// BULK UPDATE VENDOR STATUS (ADMIN ONLY)
+// UPDATE VENDOR STATUS
 // ============================================
-export const bulkUpdateVendorStatus = async (req: Request, res: Response): Promise<any> => {
-    try {
-        const { vendorIds, status } = req.body;
-
-        if (!vendorIds || !Array.isArray(vendorIds) || vendorIds.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'Please provide vendor IDs array'
-            });
-        }
-
-        if (!['approved', 'rejected', 'pending'].includes(status)) {
-            return res.status(400).json({
-                success: false,
-                message: 'Invalid status. Must be "approved", "rejected", or "pending"'
-            });
-        }
-
-        const result = await User.updateMany(
-            { _id: { $in: vendorIds }, role: 'vendor' },
-            { approvalStatus: status }
-        );
-
-        res.json({
-            success: true,
-            message: `${result.modifiedCount} vendors updated successfully`,
-            updatedCount: result.modifiedCount,
-            status
-        });
-    } catch (error: any) {
-        console.error('❌ Error bulk updating vendors:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
-    }
-};
-
-// ============================================
-// DELETE VENDOR (ADMIN ONLY)
-// ============================================
-export const deleteVendor = async (req: Request, res: Response): Promise<any> => {
+export const updateVendorStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-
-        const vendor = await User.findOne({ _id: id, role: 'vendor' });
-        if (!vendor) {
-            return res.status(404).json({
-                success: false,
-                message: 'Vendor not found'
+        const { status } = req.body;
+        
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid status' 
             });
         }
-
-        // Delete associated products and employees
-        await Product.deleteMany({ vendorId: id });
-        await Employee.deleteMany({ vendorId: id });
         
-        // Delete the vendor
-        await User.findByIdAndDelete(id);
-
-        res.json({
-            success: true,
-            message: 'Vendor and all associated data deleted successfully'
+        const vendor = await User.findOneAndUpdate(
+            { _id: id, role: 'vendor' }, 
+            { approvalStatus: status }, 
+            { new: true }
+        );
+        
+        if (!vendor) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Vendor not found' 
+            });
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `Vendor ${status} successfully` 
         });
     } catch (error: any) {
-        console.error('❌ Error deleting vendor:', error.message);
-        res.status(500).json({ success: false, message: 'Server error: ' + error.message });
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// GET RIDERS
+// ============================================
+export const getRiders = async (req: Request, res: Response) => {
+    try {
+        const riders = await User.find({ role: 'rider' })
+            .select('-password')
+            .sort({ createdAt: -1 });
+            
+        const formattedRiders = riders.map((r: any) => ({
+            id: r._id, 
+            name: r.name, 
+            email: r.email, 
+            status: r.approvalStatus || 'approved'
+        }));
+        
+        res.json({ 
+            success: true, 
+            riders: formattedRiders 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// GET CUSTOMERS
+// ============================================
+export const getCustomers = async (req: Request, res: Response) => {
+    try {
+        const customers = await User.find({ role: 'customer' })
+            .select('-password')
+            .sort({ createdAt: -1 });
+            
+        const formattedCustomers = customers.map((c: any) => ({
+            id: c._id, 
+            name: c.name, 
+            email: c.email, 
+            status: 'active'
+        }));
+        
+        res.json({ 
+            success: true, 
+            customers: formattedCustomers 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// ADMIN EMPLOYEES CRUD
+// ============================================
+export const getEmployees = async (req: Request, res: Response) => {
+    try {
+        const list = await Employer.find().sort({ createdAt: -1 });
+        res.json({ 
+            success: true, 
+            employees: list.map((e: any) => ({ 
+                id: e._id, 
+                name: e.name, 
+                email: e.email, 
+                role: e.role 
+            })) 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const createEmployee = async (req: Request, res: Response) => {
+    try {
+        const { name, email, role } = req.body;
+        const exist = await Employer.findOne({ email });
+        if (exist) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Employee with this email already exists' 
+            });
+        }
+        const emp = new Employer({ name, email, role });
+        await emp.save();
+        res.json({ 
+            success: true, 
+            message: 'Employee provisioned successfully', 
+            employee: emp 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const deleteEmployee = async (req: Request, res: Response) => {
+    try {
+        await Employer.findByIdAndDelete(req.params.id);
+        res.json({ 
+            success: true, 
+            message: 'Employee access terminated successfully' 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// COMMISSION MODEL CRUD
+// ============================================
+export const getCommissions = async (req: Request, res: Response) => {
+    try {
+        const list = await Commission.find().sort({ createdAt: -1 });
+        res.json({ 
+            success: true, 
+            commissions: list.map((c: any) => ({ 
+                id: c._id, 
+                name: c.name, 
+                type: c.type, 
+                value: c.value, 
+                description: c.description 
+            })) 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const createCommission = async (req: Request, res: Response) => {
+    try {
+        const { name, type, value, description } = req.body;
+        const comm = new Commission({ name, type, value, description });
+        await comm.save();
+        res.json({ 
+            success: true, 
+            message: 'Strategy injected successfully', 
+            commission: comm 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const deleteCommission = async (req: Request, res: Response) => {
+    try {
+        await Commission.findByIdAndDelete(req.params.id);
+        res.json({ 
+            success: true, 
+            message: 'Strategy deleted successfully' 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// DISCOUNT COUPONS CRUD
+// ============================================
+export const getCoupons = async (req: Request, res: Response) => {
+    try {
+        const list = await Coupon.find().sort({ createdAt: -1 });
+        res.json({ 
+            success: true, 
+            coupons: list.map((c: any) => ({ 
+                id: c._id, 
+                code: c.code, 
+                type: c.type, 
+                discount: c.discount, 
+                expiry: c.expiry, 
+                usage: c.usage 
+            })) 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const createCoupon = async (req: Request, res: Response) => {
+    try {
+        const { code, type, discount, expiry } = req.body;
+        const exist = await Coupon.findOne({ code: code.toUpperCase() });
+        if (exist) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Coupon code already exists' 
+            });
+        }
+        const cp = new Coupon({ 
+            code: code.toUpperCase(), 
+            type, 
+            discount, 
+            expiry 
+        });
+        await cp.save();
+        res.json({ 
+            success: true, 
+            message: 'Coupon minted successfully', 
+            coupon: cp 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const deleteCoupon = async (req: Request, res: Response) => {
+    try {
+        await Coupon.findByIdAndDelete(req.params.id);
+        res.json({ 
+            success: true, 
+            message: 'Coupon tracking terminated' 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+// ============================================
+// SYSTEM ANNOUNCEMENTS CRUD
+// ============================================
+export const getAnnouncements = async (req: Request, res: Response) => {
+    try {
+        const list = await Announcement.find().sort({ createdAt: -1 });
+        res.json({ 
+            success: true, 
+            announcements: list.map((a: any) => ({ 
+                id: a._id, 
+                title: a.title, 
+                content: a.content, 
+                audience: a.audience, 
+                date: a.date 
+            })) 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const createAnnouncement = async (req: Request, res: Response) => {
+    try {
+        const { title, content, audience } = req.body;
+        const date = new Date().toISOString().split('T')[0];
+        const ann = new Announcement({ title, content, audience, date });
+        await ann.save();
+        res.json({ 
+            success: true, 
+            message: 'Broadcast launched live', 
+            announcement: ann 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
+};
+
+export const deleteAnnouncement = async (req: Request, res: Response) => {
+    try {
+        await Announcement.findByIdAndDelete(req.params.id);
+        res.json({ 
+            success: true, 
+            message: 'Broadcast removed successfully' 
+        });
+    } catch (error: any) {
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
     }
 };

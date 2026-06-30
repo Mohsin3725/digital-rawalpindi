@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import styles from './admin.module.css';
 
 // ============================================
-// TYPES
+// INTERFACES / TYPES
 // ============================================
 interface Vendor {
     id: string;
@@ -16,233 +16,838 @@ interface Vendor {
     phone: string;
     status: 'pending' | 'approved' | 'rejected';
     date: string;
-    cnicFront: string | null;
-    cnicBack: string | null;
-    shopAddress: string;
-    subscriptionPlan: string;
-    subscriptionStatus: string;
-    totalProducts: number;
-    totalEarnings: number;
+    cnicFront?: string;
+    cnicBack?: string;
+    shopAddress?: string;
+    ntnNumber?: string;
+    businessLicense?: string;
 }
 
-interface DashboardStats {
-    totalVendors: number;
-    totalCustomers: number;
-    totalRiders: number;
-    pendingVendors: number;
-    approvedVendors: number;
-    newVendorsThisWeek: number;
-    newVendorsThisMonth: number;
+interface WithdrawalRequest {
+    id: string;
+    vendorId: string;
+    vendorName: string;
+    shopName: string;
+    amount: number;
+    method: string;
+    accountDetails: string;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    createdAt?: string;
 }
 
-// ============================================
-// API BASE URL
-// ============================================
-const API_BASE = 'http://localhost:5002/api';
+interface SubscriptionRequest {
+    id: string;
+    vendorId: string;
+    vendorName: string;
+    shopName: string;
+    planType: 'monthly' | 'yearly';
+    amount: number;
+    status: 'pending' | 'approved' | 'rejected';
+    requestedAt: string;
+    createdAt?: string;
+}
+
+interface Rider {
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+}
+
+interface Customer {
+    id: string;
+    name: string;
+    email: string;
+    status: string;
+}
+
+interface AdminEmployee {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+}
+
+interface Coupon {
+    id: string;
+    code: string;
+    discount: string;
+    type: 'percentage' | 'fixed';
+    expiry: string;
+    usage: number;
+}
+
+interface Announcement {
+    id: string;
+    title: string;
+    content: string;
+    date: string;
+    audience: 'all' | 'vendors' | 'customers' | 'riders';
+}
+
+interface CommissionType {
+    id: string;
+    name: string;
+    value: string;
+    type: 'percentage' | 'fixed';
+    description: string;
+}
 
 export default function AdminDashboardPage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
+    const [showVendorDetail, setShowVendorDetail] = useState(false);
+
+    // ============================================
+    // STATES
+    // ============================================
     const [vendors, setVendors] = useState<Vendor[]>([]);
-    const [stats, setStats] = useState<DashboardStats>({
-        totalVendors: 0,
-        totalCustomers: 0,
-        totalRiders: 0,
-        pendingVendors: 0,
-        approvedVendors: 0,
-        newVendorsThisWeek: 0,
-        newVendorsThisMonth: 0
-    });
-    const [activeTab, setActiveTab] = useState('vendors');
-    const [error, setError] = useState<string | null>(null);
-    const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+    const [riders, setRiders] = useState<Rider[]>([]);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [adminEmployees, setAdminEmployees] = useState<AdminEmployee[]>([]);
+    const [commissionTypes, setCommissionTypes] = useState<CommissionType[]>([]);
+    const [coupons, setCoupons] = useState<Coupon[]>([]);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
 
     // ============================================
-    // TOAST NOTIFICATION
+    // ✅ WITHDRAWAL & SUBSCRIPTION REQUESTS (Real Data)
     // ============================================
-    const showToast = (text: string, type: 'success' | 'error') => {
-        setToastMessage({ text, type });
-        setTimeout(() => setToastMessage(null), 5000);
-    };
+    const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
+    const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
 
     // ============================================
-    // FETCH VENDORS - ✅ FIXED API ENDPOINT
+    // MODALS STATE
     // ============================================
-    const fetchVendors = useCallback(async () => {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
+    const [showAddCoupon, setShowAddCoupon] = useState(false);
+    const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
+    const [showAddEmployee, setShowAddEmployee] = useState(false);
+    const [showAddCommission, setShowAddCommission] = useState(false);
 
+    // ============================================
+    // FORM STATES
+    // ============================================
+    const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', role: 'Vendor Manager' });
+    const [couponForm, setCouponForm] = useState({ code: '', type: 'percentage' as const, discount: '', expiry: '' });
+    const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', audience: 'all' as const });
+    const [commissionForm, setCommissionForm] = useState({ name: '', type: 'percentage' as const, value: '', description: '' });
+
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5002';
+
+    // ============================================
+    // ✅ FETCH WITHDRAWALS FROM API
+    // ============================================
+    const fetchWithdrawals = useCallback(async () => {
         try {
-            setLoading(true);
-            setError(null);
+            const token = localStorage.getItem('token');
+            if (!token) return;
 
-            const config = {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            };
-
-            // ✅ FIXED: Use /api/admin/vendors instead of /api/auth/vendors
-            const response = await axios.get(`${API_BASE}/admin/vendors`, config);
+            const response = await axios.get(`${API_URL}/api/auth/withdrawals`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
 
             if (response.data.success) {
-                const vendorsList = response.data.vendors || [];
-                setVendors(vendorsList);
-
-                // Calculate stats
-                const total = vendorsList.length;
-                const pending = vendorsList.filter((v: Vendor) => v.status === 'pending').length;
-                const approved = vendorsList.filter((v: Vendor) => v.status === 'approved').length;
-
-                setStats(prev => ({
-                    ...prev,
-                    totalVendors: total,
-                    pendingVendors: pending,
-                    approvedVendors: approved
+                // Format data for frontend
+                const formatted = response.data.withdrawals.map((w: any) => ({
+                    id: w._id || w.id,
+                    vendorId: w.vendorId,
+                    vendorName: w.vendorName,
+                    shopName: w.shopName,
+                    amount: w.amount,
+                    method: w.method,
+                    accountDetails: w.accountDetails,
+                    status: w.status || 'pending',
+                    requestedAt: w.createdAt ? new Date(w.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
                 }));
+                setWithdrawalRequests(formatted);
             }
         } catch (error: any) {
-            console.error('❌ Error fetching vendors:', error);
-            setError(error.response?.data?.message || 'Failed to fetch vendors');
-            
-            if (error.response?.status === 401) {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                router.push('/auth/login');
+            console.error('Error fetching withdrawals:', error.response?.data || error.message);
+        }
+    }, [API_URL]);
+
+    // ============================================
+    // ✅ FETCH SUBSCRIPTION REQUESTS FROM API
+    // ============================================
+    const fetchSubscriptions = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            const response = await axios.get(`${API_URL}/api/auth/subscriptions`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.data.success) {
+                const formatted = response.data.requests.map((s: any) => ({
+                    id: s._id || s.id,
+                    vendorId: s.vendorId,
+                    vendorName: s.vendorName,
+                    shopName: s.shopName,
+                    planType: s.planType || 'monthly',
+                    amount: s.amount || (s.planType === 'monthly' ? 1000 : 10000),
+                    status: s.status || 'pending',
+                    requestedAt: s.createdAt ? new Date(s.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                }));
+                setSubscriptionRequests(formatted);
             }
+        } catch (error: any) {
+            console.error('Error fetching subscriptions:', error.response?.data || error.message);
+        }
+    }, [API_URL]);
+
+    // ============================================
+    // FETCH DATA FROM BACKEND
+    // ============================================
+    const loadAllDashboardData = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                router.push('/auth/login');
+                setLoading(false);
+                return;
+            }
+
+            const headers = { Authorization: `Bearer ${token}` };
+
+            // 1. Vendors
+            const resVendors = await axios.get(`${API_URL}/api/auth/vendors`, { headers });
+            if (resVendors?.data?.success) setVendors(resVendors.data.vendors);
+
+            // 2. Riders
+            const resRiders = await axios.get(`${API_URL}/api/auth/riders`, { headers });
+            if (resRiders?.data?.success) setRiders(resRiders.data.riders);
+
+            // 3. Customers
+            const resCustomers = await axios.get(`${API_URL}/api/auth/customers`, { headers });
+            if (resCustomers?.data?.success) setCustomers(resCustomers.data.customers);
+
+            // 4. Employees
+            const resEmployees = await axios.get(`${API_URL}/api/auth/employees`, { headers });
+            if (resEmployees?.data?.success) setAdminEmployees(resEmployees.data.employees);
+
+            // 5. Commissions
+            const resCommissions = await axios.get(`${API_URL}/api/auth/commissions`, { headers });
+            if (resCommissions?.data?.success) setCommissionTypes(resCommissions.data.commissions);
+
+            // 6. Coupons
+            const resCoupons = await axios.get(`${API_URL}/api/auth/coupons`, { headers });
+            if (resCoupons?.data?.success) setCoupons(resCoupons.data.coupons);
+
+            // 7. Announcements
+            const resAnnouncements = await axios.get(`${API_URL}/api/auth/announcements`, { headers });
+            if (resAnnouncements?.data?.success) setAnnouncements(resAnnouncements.data.announcements);
+
+            // ✅ 8. Withdrawals (Real API)
+            await fetchWithdrawals();
+
+            // ✅ 9. Subscriptions (Real API)
+            await fetchSubscriptions();
+
+        } catch (error: any) {
+            console.error("Error loading dashboard data:", error.response?.data || error.message);
         } finally {
             setLoading(false);
         }
-    }, [router]);
+    }, [API_URL, router, fetchWithdrawals, fetchSubscriptions]);
 
-    // ============================================
-    // UPDATE VENDOR STATUS
-    // ============================================
-    const updateVendorStatus = async (vendorId: string, status: 'approved' | 'rejected') => {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
-
-        try {
-            const config = {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            };
-
-            // ✅ FIXED: Use /api/admin/vendors/:id/status
-            const response = await axios.put(
-                `${API_BASE}/admin/vendors/${vendorId}/status`,
-                { status },
-                config
-            );
-
-            if (response.data.success) {
-                showToast(`✅ Vendor ${status} successfully!`, 'success');
-                // Refresh vendors list
-                await fetchVendors();
-            }
-        } catch (error: any) {
-            console.error('❌ Error updating vendor status:', error);
-            showToast(error.response?.data?.message || 'Failed to update vendor status', 'error');
-        }
-    };
-
-    // ============================================
-    // FETCH SUBSCRIPTION REQUESTS
-    // ============================================
-    const fetchSubscriptionRequests = useCallback(async () => {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
-
-        try {
-            const config = {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            };
-
-            // ✅ Use /api/admin/subscription-requests
-            const response = await axios.get(`${API_BASE}/admin/subscription-requests`, config);
-            console.log('📋 Subscription requests:', response.data);
-        } catch (error: any) {
-            console.error('❌ Error fetching subscription requests:', error);
-        }
-    }, [router]);
-
-    // ============================================
-    // APPROVE SUBSCRIPTION REQUEST
-    // ============================================
-    const approveSubscriptionRequest = async (vendorId: string, action: 'approve' | 'reject', extensionDays?: number) => {
-        const token = localStorage.getItem('token');
-        
-        if (!token) {
-            router.push('/auth/login');
-            return;
-        }
-
-        try {
-            const config = {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            };
-
-            // ✅ Use /api/admin/subscription-requests/:vendorId/approve
-            const response = await axios.post(
-                `${API_BASE}/admin/subscription-requests/${vendorId}/approve`,
-                { action, extensionDays },
-                config
-            );
-
-            if (response.data.success) {
-                showToast(response.data.message, 'success');
-                await fetchSubscriptionRequests();
-            }
-        } catch (error: any) {
-            console.error('❌ Error approving subscription:', error);
-            showToast(error.response?.data?.message || 'Failed to process request', 'error');
-        }
-    };
-
-    // ============================================
-    // INITIAL LOAD
-    // ============================================
     useEffect(() => {
-        fetchVendors();
-        fetchSubscriptionRequests();
-    }, [fetchVendors, fetchSubscriptionRequests]);
+        const token = localStorage.getItem('token');
+        if (!token) {
+            router.push('/auth/login');
+            setLoading(false);
+            return;
+        }
+        loadAllDashboardData();
+    }, [router, loadAllDashboardData]);
+
+    // ============================================
+    // VENDOR APPROVAL
+    // ============================================
+    const updateVendorStatus = useCallback(async (vendorId: string, status: 'approved' | 'rejected') => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.put(
+                `${API_URL}/api/auth/vendor/${vendorId}/status`,
+                { status },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert(`✅ Vendor ${status} successfully!`);
+                setShowVendorDetail(false);
+                loadAllDashboardData();
+            }
+        } catch (error: any) {
+            alert(`❌ Error updating vendor status: ${error.response?.data?.message || error.message}`);
+        }
+    }, [API_URL, loadAllDashboardData]);
+
+    // ============================================
+    // ✅ WITHDRAWAL REQUEST HANDLERS
+    // ============================================
+    const handleWithdrawalStatus = useCallback(async (requestId: string, status: 'approved' | 'rejected') => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.put(
+                `${API_URL}/api/auth/withdrawal/${requestId}/status`,
+                { status },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert(`✅ Withdrawal ${status} successfully!`);
+                // Refresh withdrawals
+                await fetchWithdrawals();
+            }
+        } catch (error: any) {
+            alert(`❌ Error updating withdrawal: ${error.response?.data?.message || error.message}`);
+        }
+    }, [API_URL, fetchWithdrawals]);
+
+    // ============================================
+    // ✅ SUBSCRIPTION REQUEST HANDLERS
+    // ============================================
+    const handleSubscriptionStatus = useCallback(async (requestId: string, status: 'approved' | 'rejected') => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.put(
+                `${API_URL}/api/auth/subscription/${requestId}/status`,
+                { status },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert(`✅ Subscription ${status} successfully!`);
+                // Refresh subscriptions
+                await fetchSubscriptions();
+            }
+        } catch (error: any) {
+            alert(`❌ Error updating subscription: ${error.response?.data?.message || error.message}`);
+        }
+    }, [API_URL, fetchSubscriptions]);
+
+    // ============================================
+    // EMPLOYEE CRUD
+    // ============================================
+    const handleAddEmployeeSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${API_URL}/api/auth/employee`,
+                employeeForm,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert('✅ Employee added successfully!');
+                setShowAddEmployee(false);
+                setEmployeeForm({ name: '', email: '', role: 'Vendor Manager' });
+                loadAllDashboardData();
+            }
+        } catch (error) {
+            alert('❌ Failed to add employee');
+        }
+    };
+
+    const handleDeleteEmployee = async (id: string) => {
+        if (!confirm('Are you sure you want to remove this employee?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/auth/employee/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('✅ Employee removed successfully!');
+            loadAllDashboardData();
+        } catch (error) {
+            alert('❌ Failed to remove employee');
+        }
+    };
+
+    // ============================================
+    // COUPON CRUD
+    // ============================================
+    const handleAddCouponSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${API_URL}/api/auth/coupon`,
+                couponForm,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert('✅ Coupon created successfully!');
+                setShowAddCoupon(false);
+                setCouponForm({ code: '', type: 'percentage', discount: '', expiry: '' });
+                loadAllDashboardData();
+            }
+        } catch (error) {
+            alert('❌ Failed to create coupon');
+        }
+    };
+
+    const handleDeleteCoupon = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this coupon?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/auth/coupon/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('✅ Coupon deleted successfully!');
+            loadAllDashboardData();
+        } catch (error) {
+            alert('❌ Failed to delete coupon');
+        }
+    };
+
+    // ============================================
+    // COMMISSION CRUD
+    // ============================================
+    const handleAddCommissionSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${API_URL}/api/auth/commission`,
+                commissionForm,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert('✅ Commission type added successfully!');
+                setShowAddCommission(false);
+                setCommissionForm({ name: '', type: 'percentage', value: '', description: '' });
+                loadAllDashboardData();
+            }
+        } catch (error) {
+            alert('❌ Failed to add commission type');
+        }
+    };
+
+    const handleDeleteCommission = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this commission type?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/auth/commission/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('✅ Commission type deleted successfully!');
+            loadAllDashboardData();
+        } catch (error) {
+            alert('❌ Failed to delete commission type');
+        }
+    };
+
+    // ============================================
+    // ANNOUNCEMENT CRUD
+    // ============================================
+    const handleAddAnnouncementSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem('token');
+            const response = await axios.post(
+                `${API_URL}/api/auth/announcement`,
+                announcementForm,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data.success) {
+                alert('✅ Announcement sent successfully!');
+                setShowAddAnnouncement(false);
+                setAnnouncementForm({ title: '', content: '', audience: 'all' });
+                loadAllDashboardData();
+            }
+        } catch (error) {
+            alert('❌ Failed to send announcement');
+        }
+    };
+
+    const handleDeleteAnnouncement = async (id: string) => {
+        if (!confirm('Are you sure you want to delete this announcement?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/api/auth/announcement/${id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            alert('✅ Announcement deleted successfully!');
+            loadAllDashboardData();
+        } catch (error) {
+            alert('❌ Failed to delete announcement');
+        }
+    };
+
+    // ============================================
+    // IMAGE URL HELPERS
+    // ============================================
+    const getImageUrl = (path: string | undefined) => {
+        if (!path) return null;
+        if (path.startsWith('http')) return path;
+        let filename = path;
+        if (path.includes('/uploads/')) {
+            filename = path.split('/uploads/').pop() || path;
+        } else if (path.includes('uploads/')) {
+            filename = path.split('uploads/').pop() || path;
+        }
+        if (filename.includes('/')) {
+            filename = filename.split('/').pop() || filename;
+        }
+        if (filename.startsWith('/')) {
+            filename = filename.substring(1);
+        }
+        return `${API_URL}/uploads/${filename}`;
+    };
+
+    // ============================================
+    // VENDOR DETAIL MODAL
+    // ============================================
+    const renderVendorDetailModal = useCallback(() => {
+        if (!showVendorDetail || !selectedVendor) return null;
+
+        const isPending = selectedVendor.status === 'pending';
+
+        const cnicFrontUrl = getImageUrl(selectedVendor.cnicFront);
+        const cnicBackUrl = getImageUrl(selectedVendor.cnicBack);
+        const businessLicenseUrl = getImageUrl(selectedVendor.businessLicense);
+
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowVendorDetail(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <div className={styles.modalHeader}>
+                        <h3 className={styles.modalTitle}>📋 Vendor Details</h3>
+                        <button className={styles.modalClose} onClick={() => setShowVendorDetail(false)}>×</button>
+                    </div>
+
+                    <div className={styles.detailGrid}>
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Shop Name</label>
+                            <p className={styles.detailValue}>{selectedVendor.shopName}</p>
+                        </div>
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Owner Name</label>
+                            <p className={styles.detailValue}>{selectedVendor.ownerName}</p>
+                        </div>
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Email</label>
+                            <p className={styles.detailValue}>{selectedVendor.email}</p>
+                        </div>
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Phone</label>
+                            <p className={styles.detailValue}>{selectedVendor.phone}</p>
+                        </div>
+                        <div className={styles.detailFull}>
+                            <label className={styles.detailLabel}>Shop Address</label>
+                            <p className={styles.detailValue}>{selectedVendor.shopAddress}</p>
+                        </div>
+                        {selectedVendor.ntnNumber && (
+                            <div className={styles.detailItem}>
+                                <label className={styles.detailLabel}>NTN Number</label>
+                                <p className={styles.detailValue}>{selectedVendor.ntnNumber}</p>
+                            </div>
+                        )}
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Status</label>
+                            <p className={styles.detailValue}>
+                                <span className={`${styles.statusBadge} ${
+                                    selectedVendor.status === 'approved' ? styles.statusApproved :
+                                    selectedVendor.status === 'rejected' ? styles.statusRejected :
+                                    styles.statusPending
+                                }`}>
+                                    {selectedVendor.status.charAt(0).toUpperCase() + selectedVendor.status.slice(1)}
+                                </span>
+                            </p>
+                        </div>
+                        <div className={styles.detailItem}>
+                            <label className={styles.detailLabel}>Registered On</label>
+                            <p className={styles.detailValue}>{selectedVendor.date}</p>
+                        </div>
+                    </div>
+
+                    <div className={styles.cnicSection}>
+                        <h4 className={styles.cnicTitle}>📄 CNIC Documents</h4>
+                        <div className={styles.cnicContainer}>
+                            <div className={styles.cnicBox}>
+                                <label className={styles.cnicLabel}>CNIC Front</label>
+                                {cnicFrontUrl ? (
+                                    <div className={styles.cnicImageWrapper}>
+                                        <img 
+                                            src={cnicFrontUrl}
+                                            alt="CNIC Front"
+                                            className={styles.cnicImage}
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                const parent = (e.target as HTMLImageElement).parentElement;
+                                                if (parent) {
+                                                    const msg = document.createElement('span');
+                                                    msg.textContent = '📷 No image available';
+                                                    msg.style.color = '#6c757d';
+                                                    msg.style.padding = '10px';
+                                                    msg.style.display = 'block';
+                                                    msg.style.textAlign = 'center';
+                                                    parent.appendChild(msg);
+                                                }
+                                            }}
+                                        />
+                                        <a 
+                                            href={cnicFrontUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.cnicViewBtn}
+                                        >
+                                            🔍 View Full Image
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <div className={styles.cnicEmpty}>No CNIC Front uploaded</div>
+                                )}
+                            </div>
+                            <div className={styles.cnicBox}>
+                                <label className={styles.cnicLabel}>CNIC Back</label>
+                                {cnicBackUrl ? (
+                                    <div className={styles.cnicImageWrapper}>
+                                        <img 
+                                            src={cnicBackUrl}
+                                            alt="CNIC Back"
+                                            className={styles.cnicImage}
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                const parent = (e.target as HTMLImageElement).parentElement;
+                                                if (parent) {
+                                                    const msg = document.createElement('span');
+                                                    msg.textContent = '📷 No image available';
+                                                    msg.style.color = '#6c757d';
+                                                    msg.style.padding = '10px';
+                                                    msg.style.display = 'block';
+                                                    msg.style.textAlign = 'center';
+                                                    parent.appendChild(msg);
+                                                }
+                                            }}
+                                        />
+                                        <a 
+                                            href={cnicBackUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.cnicViewBtn}
+                                        >
+                                            🔍 View Full Image
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <div className={styles.cnicEmpty}>No CNIC Back uploaded</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {businessLicenseUrl && (
+                        <div className={styles.cnicSection}>
+                            <h4 className={styles.cnicTitle}>📄 Business License</h4>
+                            <div className={styles.cnicContainer}>
+                                <div className={styles.cnicBox}>
+                                    <label className={styles.cnicLabel}>Business License</label>
+                                    <div className={styles.cnicImageWrapper}>
+                                        <img 
+                                            src={businessLicenseUrl}
+                                            alt="Business License"
+                                            className={styles.cnicImage}
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                                const parent = (e.target as HTMLImageElement).parentElement;
+                                                if (parent) {
+                                                    const msg = document.createElement('span');
+                                                    msg.textContent = '📷 No image available';
+                                                    msg.style.color = '#6c757d';
+                                                    msg.style.padding = '10px';
+                                                    msg.style.display = 'block';
+                                                    msg.style.textAlign = 'center';
+                                                    parent.appendChild(msg);
+                                                }
+                                            }}
+                                        />
+                                        <a 
+                                            href={businessLicenseUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={styles.cnicViewBtn}
+                                        >
+                                            🔍 View Full Image
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {isPending && (
+                        <div className={styles.modalActions}>
+                            <button 
+                                className={styles.successBtn}
+                                onClick={() => updateVendorStatus(selectedVendor.id, 'approved')}
+                            >
+                                ✅ Approve Vendor
+                            </button>
+                            <button 
+                                className={styles.dangerBtn}
+                                onClick={() => updateVendorStatus(selectedVendor.id, 'rejected')}
+                            >
+                                ❌ Reject Vendor
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }, [showVendorDetail, selectedVendor, updateVendorStatus, API_URL]);
+
+    // ============================================
+    // ✅ WITHDRAWAL REQUESTS TABLE
+    // ============================================
+    const renderWithdrawalRequests = useCallback(() => (
+        <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>💳 Withdrawal Requests</h2>
+            <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Shop</th>
+                            <th>Amount</th>
+                            <th>Method</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {withdrawalRequests.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#6c757d' }}>
+                                    No withdrawal requests found.
+                                </td>
+                            </tr>
+                        ) : (
+                            withdrawalRequests.map((w) => (
+                                <tr key={w.id}>
+                                    <td>{w.vendorName}</td>
+                                    <td>{w.shopName}</td>
+                                    <td><strong>PKR {w.amount.toLocaleString()}</strong></td>
+                                    <td>{w.method}</td>
+                                    <td>{w.requestedAt}</td>
+                                    <td>
+                                        <span className={`${styles.statusBadge} ${
+                                            w.status === 'approved' ? styles.statusApproved :
+                                            w.status === 'rejected' ? styles.statusRejected :
+                                            styles.statusPending
+                                        }`}>
+                                            {w.status.charAt(0).toUpperCase() + w.status.slice(1)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {w.status === 'pending' && (
+                                            <>
+                                                <button 
+                                                    className={styles.successBtn}
+                                                    onClick={() => handleWithdrawalStatus(w.id, 'approved')}
+                                                    style={{ marginRight: '5px' }}
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button 
+                                                    className={styles.dangerBtn}
+                                                    onClick={() => handleWithdrawalStatus(w.id, 'rejected')}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    ), [withdrawalRequests, handleWithdrawalStatus]);
+
+    // ============================================
+    // ✅ SUBSCRIPTION REQUESTS TABLE
+    // ============================================
+    const renderSubscriptionRequests = useCallback(() => (
+        <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>📋 Subscription Upgrade Requests</h2>
+            <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                    <thead>
+                        <tr>
+                            <th>Vendor</th>
+                            <th>Shop</th>
+                            <th>Plan</th>
+                            <th>Amount</th>
+                            <th>Date</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {subscriptionRequests.length === 0 ? (
+                            <tr>
+                                <td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#6c757d' }}>
+                                    No subscription requests found.
+                                </td>
+                            </tr>
+                        ) : (
+                            subscriptionRequests.map((s) => (
+                                <tr key={s.id}>
+                                    <td>{s.vendorName}</td>
+                                    <td>{s.shopName}</td>
+                                    <td>
+                                        <span className={styles.statusBadge} style={{ backgroundColor: '#e3f2fd', color: '#0d47a1' }}>
+                                            {s.planType.charAt(0).toUpperCase() + s.planType.slice(1)}
+                                        </span>
+                                    </td>
+                                    <td><strong>PKR {s.amount.toLocaleString()}</strong></td>
+                                    <td>{s.requestedAt}</td>
+                                    <td>
+                                        <span className={`${styles.statusBadge} ${
+                                            s.status === 'approved' ? styles.statusApproved :
+                                            s.status === 'rejected' ? styles.statusRejected :
+                                            styles.statusPending
+                                        }`}>
+                                            {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {s.status === 'pending' && (
+                                            <>
+                                                <button 
+                                                    className={styles.successBtn}
+                                                    onClick={() => handleSubscriptionStatus(s.id, 'approved')}
+                                                    style={{ marginRight: '5px' }}
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button 
+                                                    className={styles.dangerBtn}
+                                                    onClick={() => handleSubscriptionStatus(s.id, 'rejected')}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    ), [subscriptionRequests, handleSubscriptionStatus]);
 
     // ============================================
     // RENDER FUNCTIONS
     // ============================================
-
-    // Render Vendors Table
-    const renderVendorsTable = () => {
-        if (loading) {
-            return <div className={styles.loading}>Loading vendors...</div>;
-        }
-
-        if (error) {
-            return <div className={styles.error}>❌ {error}</div>;
-        }
-
-        if (vendors.length === 0) {
-            return <div className={styles.empty}>No vendors registered yet.</div>;
-        }
-
-        return (
+    const renderVendors = useCallback(() => (
+        <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>🏪 Vendor Management</h2>
             <div className={styles.tableContainer}>
                 <table className={styles.table}>
                     <thead>
@@ -252,176 +857,423 @@ export default function AdminDashboardPage() {
                             <th>Email</th>
                             <th>Date</th>
                             <th>Status</th>
-                            <th>Plan</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {vendors.map((vendor) => (
-                            <tr key={vendor.id}>
-                                <td>{vendor.shopName}</td>
-                                <td>{vendor.ownerName}</td>
-                                <td>{vendor.email}</td>
-                                <td>{vendor.date}</td>
-                                <td>
-                                    <span className={`${styles.statusBadge} ${
-                                        vendor.status === 'approved' ? styles.statusApproved :
-                                        vendor.status === 'pending' ? styles.statusPending :
-                                        styles.statusRejected
-                                    }`}>
-                                        {vendor.status}
-                                    </span>
+                        {vendors.length === 0 ? (
+                            <tr>
+                                <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6c757d' }}>
+                                    No vendors registered yet.
                                 </td>
-                                <td>
-                                    <span className={styles.planBadge}>
-                                        {vendor.subscriptionPlan || 'free'}
-                                    </span>
-                                </td>
-                                <td>
-                                    {vendor.status === 'pending' && (
-                                        <div className={styles.actionButtons}>
-                                            <button
-                                                className={styles.approveBtn}
-                                                onClick={() => updateVendorStatus(vendor.id, 'approved')}
-                                            >
-                                                Approve
-                                            </button>
-                                            <button
-                                                className={styles.rejectBtn}
-                                                onClick={() => updateVendorStatus(vendor.id, 'rejected')}
-                                            >
-                                                Reject
-                                            </button>
-                                        </div>
-                                    )}
-                                    {vendor.status === 'approved' && (
-                                        <span className={styles.approvedText}>✅ Approved</span>
-                                    )}
-                                    {vendor.status === 'rejected' && (
-                                        <span className={styles.rejectedText}>❌ Rejected</span>
-                                    )}
-                                </td>
+                            </tr>
+                        ) : (
+                            vendors.map((vendor) => (
+                                <tr key={vendor.id}>
+                                    <td>{vendor.shopName}</td>
+                                    <td>{vendor.ownerName}</td>
+                                    <td>{vendor.email}</td>
+                                    <td>{vendor.date}</td>
+                                    <td>
+                                        <span className={`${styles.statusBadge} ${vendor.status === 'approved' ? styles.statusApproved :
+                                                vendor.status === 'rejected' ? styles.statusRejected :
+                                                styles.statusPending
+                                            }`}>
+                                            {vendor.status.charAt(0).toUpperCase() + vendor.status.slice(1)}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button
+                                            className={styles.primaryBtn}
+                                            onClick={() => { setSelectedVendor(vendor); setShowVendorDetail(true); }}
+                                        >
+                                            👁️ View Details
+                                        </button>
+                                        {vendor.status === 'pending' && (
+                                            <>
+                                                <button
+                                                    className={styles.successBtn}
+                                                    onClick={() => updateVendorStatus(vendor.id, 'approved')}
+                                                >
+                                                    Approve
+                                                </button>
+                                                <button
+                                                    className={styles.dangerBtn}
+                                                    onClick={() => updateVendorStatus(vendor.id, 'rejected')}
+                                                >
+                                                    Reject
+                                                </button>
+                                            </>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    ), [vendors, updateVendorStatus]);
+
+    const renderAdminEmployees = useCallback(() => (
+        <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>👥 Admin Employees</h2>
+                <button className={styles.primaryBtn} onClick={() => setShowAddEmployee(true)}>
+                    + Add Employee
+                </button>
+            </div>
+            <div className={styles.employeeGrid}>
+                {adminEmployees.map((emp) => (
+                    <div key={emp.id} className={styles.employeeCard}>
+                        <div className={styles.employeeIcon}>👤</div>
+                        <div className={styles.employeeName}>{emp.name}</div>
+                        <div className={styles.employeeRole}>{emp.role}</div>
+                        <div className={styles.employeeEmail}>{emp.email}</div>
+                        <button className={styles.dangerBtn} onClick={() => handleDeleteEmployee(emp.id)}>
+                            Remove
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    ), [adminEmployees, handleDeleteEmployee]);
+
+    const renderCommissionTypes = useCallback(() => (
+        <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>💰 Commission Rules</h2>
+                <button className={styles.primaryBtn} onClick={() => setShowAddCommission(true)}>
+                    + Add Rule
+                </button>
+            </div>
+            <div className={styles.commissionGrid}>
+                {commissionTypes.map((c) => (
+                    <div key={c.id} className={styles.commissionCard}>
+                        <div>
+                            <div className={styles.commissionName}>{c.name}</div>
+                            <div className={styles.commissionDesc}>{c.description}</div>
+                        </div>
+                        <div className={styles.commissionValue}>{c.value}</div>
+                        <button className={styles.dangerBtn} onClick={() => handleDeleteCommission(c.id)}>
+                            Delete
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    ), [commissionTypes, handleDeleteCommission]);
+
+    const renderCoupons = useCallback(() => (
+        <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>🎟️ Coupons</h2>
+                <button className={styles.primaryBtn} onClick={() => setShowAddCoupon(true)}>
+                    + Create Coupon
+                </button>
+            </div>
+            <div className={styles.couponGrid}>
+                {coupons.map((cp) => (
+                    <div key={cp.id} className={styles.couponCard}>
+                        <div className={styles.couponCode}>{cp.code}</div>
+                        <div className={styles.couponDiscount}>{cp.discount} Off</div>
+                        <div className={styles.couponExpiry}>Expires: {cp.expiry}</div>
+                        <div className={styles.couponExpiry}>Used: {cp.usage} times</div>
+                        <button className={styles.dangerBtn} onClick={() => handleDeleteCoupon(cp.id)}>
+                            Delete
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    ), [coupons, handleDeleteCoupon]);
+
+    const renderAnnouncements = useCallback(() => (
+        <div className={styles.section}>
+            <div className={styles.sectionHeader}>
+                <h2 className={styles.sectionTitle}>📢 Announcements</h2>
+                <button className={styles.primaryBtn} onClick={() => setShowAddAnnouncement(true)}>
+                    + Send Announcement
+                </button>
+            </div>
+            {announcements.map((an) => (
+                <div key={an.id} className={styles.announcementItem}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span className={styles.announcementTitle}>{an.title}</span>
+                        <span className={styles.statusBadge} style={{ backgroundColor: '#edf2f7' }}>To: {an.audience}</span>
+                    </div>
+                    <p className={styles.announcementContent}>{an.content}</p>
+                    <div className={styles.announcementDate}>{an.date}</div>
+                    <button className={styles.dangerBtn} onClick={() => handleDeleteAnnouncement(an.id)}>
+                        Delete
+                    </button>
+                </div>
+            ))}
+        </div>
+    ), [announcements, handleDeleteAnnouncement]);
+
+    const renderCustomers = useCallback(() => (
+        <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>👥 Customers</h2>
+            <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {customers.map((c) => (
+                            <tr key={c.id}>
+                                <td>{c.name}</td>
+                                <td>{c.email}</td>
+                                <td><span className={`${styles.statusBadge} ${styles.statusApproved}`}>{c.status || 'Active'}</span></td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-        );
-    };
+        </div>
+    ), [customers]);
 
-    // Render Stats Cards
-    const renderStats = () => (
-        <div className={styles.statsGrid}>
-            <div className={styles.statCard}>
-                <h3>Total Vendors</h3>
-                <p className={styles.statValue}>{stats.totalVendors}</p>
-                <span className={styles.statSub}>+{stats.newVendorsThisMonth} this month</span>
-            </div>
-            <div className={styles.statCard}>
-                <h3>Approved</h3>
-                <p className={styles.statValue}>{stats.approvedVendors}</p>
-                <span className={styles.statSub}>✅ Active vendors</span>
-            </div>
-            <div className={styles.statCard}>
-                <h3>Pending</h3>
-                <p className={styles.statValue}>{stats.pendingVendors}</p>
-                <span className={styles.statSub}>⏳ Awaiting approval</span>
-            </div>
-            <div className={styles.statCard}>
-                <h3>Total Customers</h3>
-                <p className={styles.statValue}>{stats.totalCustomers}</p>
-                <span className={styles.statSub}>👥 Registered users</span>
+    const renderRiders = useCallback(() => (
+        <div className={styles.section}>
+            <h2 className={styles.sectionTitle}>🛵 Riders</h2>
+            <div className={styles.tableContainer}>
+                <table className={styles.table}>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {riders.map((r) => (
+                            <tr key={r.id}>
+                                <td>{r.name}</td>
+                                <td>{r.email}</td>
+                                <td><span className={`${styles.statusBadge} ${styles.statusApproved}`}>{r.status || 'Active'}</span></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
             </div>
         </div>
-    );
+    ), [riders]);
 
     // ============================================
-    // TOAST RENDER
+    // MODALS FOR ADD
     // ============================================
-    const renderToast = () => {
-        if (!toastMessage) return null;
+    const renderAddEmployeeModal = useCallback(() => {
+        if (!showAddEmployee) return null;
         return (
-            <div className={`${styles.toast} ${toastMessage.type === 'success' ? styles.toastSuccess : styles.toastError}`}>
-                {toastMessage.text}
+            <div className={styles.modalOverlay} onClick={() => setShowAddEmployee(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <h3 className={styles.modalTitle}>Add Employee</h3>
+                    <form onSubmit={handleAddEmployeeSubmit}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Name</label>
+                            <input type="text" className={styles.formInput} required value={employeeForm.name} onChange={e => setEmployeeForm({...employeeForm, name: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Email</label>
+                            <input type="email" className={styles.formInput} required value={employeeForm.email} onChange={e => setEmployeeForm({...employeeForm, email: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Role</label>
+                            <select className={styles.formSelect} value={employeeForm.role} onChange={e => setEmployeeForm({...employeeForm, role: e.target.value})}>
+                                <option>Vendor Manager</option>
+                                <option>Product Moderator</option>
+                                <option>Order Manager</option>
+                                <option>Finance Manager</option>
+                                <option>Support Manager</option>
+                            </select>
+                        </div>
+                        <button type="submit" className={styles.primaryBtn}>Add Employee</button>
+                    </form>
+                </div>
             </div>
         );
-    };
+    }, [showAddEmployee, employeeForm, handleAddEmployeeSubmit]);
+
+    const renderAddCouponModal = useCallback(() => {
+        if (!showAddCoupon) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowAddCoupon(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <h3 className={styles.modalTitle}>Create Coupon</h3>
+                    <form onSubmit={handleAddCouponSubmit}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Coupon Code</label>
+                            <input type="text" className={styles.formInput} placeholder="e.g., FLAT20" required value={couponForm.code} onChange={e => setCouponForm({...couponForm, code: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Type</label>
+                            <select className={styles.formSelect} value={couponForm.type} onChange={e => setCouponForm({...couponForm, type: e.target.value as 'percentage' | 'fixed'})}>
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed Amount</option>
+                            </select>
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Discount</label>
+                            <input type="text" className={styles.formInput} placeholder="15% or 150" required value={couponForm.discount} onChange={e => setCouponForm({...couponForm, discount: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Expiry</label>
+                            <input type="date" className={styles.formInput} required value={couponForm.expiry} onChange={e => setCouponForm({...couponForm, expiry: e.target.value})} />
+                        </div>
+                        <button type="submit" className={styles.primaryBtn}>Create Coupon</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showAddCoupon, couponForm, handleAddCouponSubmit]);
+
+    const renderAddAnnouncementModal = useCallback(() => {
+        if (!showAddAnnouncement) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowAddAnnouncement(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <h3 className={styles.modalTitle}>Send Announcement</h3>
+                    <form onSubmit={handleAddAnnouncementSubmit}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Title</label>
+                            <input type="text" className={styles.formInput} required value={announcementForm.title} onChange={e => setAnnouncementForm({...announcementForm, title: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Content</label>
+                            <textarea className={styles.formTextarea} rows={4} required value={announcementForm.content} onChange={e => setAnnouncementForm({...announcementForm, content: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Audience</label>
+                            <select className={styles.formSelect} value={announcementForm.audience} onChange={e => setAnnouncementForm({...announcementForm, audience: e.target.value as 'all' | 'vendors' | 'customers' | 'riders'})}>
+                                <option value="all">All Users</option>
+                                <option value="vendors">Vendors</option>
+                                <option value="customers">Customers</option>
+                                <option value="riders">Riders</option>
+                            </select>
+                        </div>
+                        <button type="submit" className={styles.successBtn}>Send Announcement</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showAddAnnouncement, announcementForm, handleAddAnnouncementSubmit]);
+
+    const renderAddCommissionModal = useCallback(() => {
+        if (!showAddCommission) return null;
+        return (
+            <div className={styles.modalOverlay} onClick={() => setShowAddCommission(false)}>
+                <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <h3 className={styles.modalTitle}>Add Commission Rule</h3>
+                    <form onSubmit={handleAddCommissionSubmit}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Name</label>
+                            <input type="text" className={styles.formInput} required value={commissionForm.name} onChange={e => setCommissionForm({...commissionForm, name: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Type</label>
+                            <select className={styles.formSelect} value={commissionForm.type} onChange={e => setCommissionForm({...commissionForm, type: e.target.value as 'percentage' | 'fixed'})}>
+                                <option value="percentage">Percentage</option>
+                                <option value="fixed">Fixed</option>
+                            </select>
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Value</label>
+                            <input type="text" className={styles.formInput} placeholder="e.g., 2% or PKR 20" required value={commissionForm.value} onChange={e => setCommissionForm({...commissionForm, value: e.target.value})} />
+                        </div>
+                        <div className={styles.formGroup}>
+                            <label className={styles.formLabel}>Description</label>
+                            <input type="text" className={styles.formInput} required value={commissionForm.description} onChange={e => setCommissionForm({...commissionForm, description: e.target.value})} />
+                        </div>
+                        <button type="submit" className={styles.primaryBtn}>Add Commission</button>
+                    </form>
+                </div>
+            </div>
+        );
+    }, [showAddCommission, commissionForm, handleAddCommissionSubmit]);
 
     // ============================================
     // MAIN RENDER
     // ============================================
+    if (loading) {
+        return <div className={styles.loading}>Loading...</div>;
+    }
+
     return (
         <div className={styles.container}>
+            {/* SIDEBAR */}
             <div className={styles.sidebar}>
-                <h2 className={styles.logo}>🛒 Admin</h2>
+                <div className={styles.logo}>⚙️ Admin Panel</div>
                 <ul className={styles.menu}>
-                    <li className={activeTab === 'dashboard' ? styles.menuItemActive : styles.menuItem}>
-                        Dashboard
-                    </li>
-                    <li className={activeTab === 'vendors' ? styles.menuItemActive : styles.menuItem}>
-                        Vendors
-                    </li>
-                    <li className={activeTab === 'customers' ? styles.menuItemActive : styles.menuItem}>
-                        Customers
-                    </li>
-                    <li className={activeTab === 'riders' ? styles.menuItemActive : styles.menuItem}>
-                        Riders
-                    </li>
-                    <li className={activeTab === 'announcements' ? styles.menuItemActive : styles.menuItem}>
-                        Announcements
-                    </li>
-                    <li className={styles.menuItemLogout} onClick={() => {
-                        localStorage.removeItem('token');
-                        localStorage.removeItem('user');
-                        router.push('/auth/login');
-                    }}>
-                        Logout
-                    </li>
+                    <li className={activeTab === 'dashboard' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('dashboard')}>📊 Dashboard</li>
+                    <li className={activeTab === 'vendors' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('vendors')}>🏪 Vendors</li>
+                    <li className={activeTab === 'customers' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('customers')}>👥 Customers</li>
+                    <li className={activeTab === 'riders' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('riders')}>🚚 Riders</li>
+                    <li className={activeTab === 'employees' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('employees')}>👔 Employees</li>
+                    <li className={activeTab === 'commission' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('commission')}>💰 Commission</li>
+                    <li className={activeTab === 'coupons' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('coupons')}>🎟️ Coupons</li>
+                    <li className={activeTab === 'announcements' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('announcements')}>📢 Announcements</li>
+                    <li className={activeTab === 'withdrawals' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('withdrawals')}>💳 Withdrawals</li>
+                    <li className={activeTab === 'subscriptions' ? styles.menuItemActive : styles.menuItem} onClick={() => setActiveTab('subscriptions')}>📋 Subscriptions</li>
+                    <li className={styles.menuItemLogout} onClick={() => { localStorage.clear(); router.push('/auth/login'); }}>🔒 Logout</li>
                 </ul>
             </div>
 
+            {/* MAIN CONTENT */}
             <div className={styles.main}>
-                <div className={styles.header}>
-                    <h1>Admin Dashboard</h1>
-                    <p>Welcome back, Admin!</p>
-                </div>
-
+                {/* DASHBOARD */}
                 {activeTab === 'dashboard' && (
                     <>
-                        {renderStats()}
-                        <div className={styles.recentSection}>
-                            <h2>Recent Vendors</h2>
-                            {renderVendorsTable()}
+                        <div className={styles.header}>
+                            <h2>Admin Dashboard</h2>
+                            <p>Welcome back, Admin!</p>
                         </div>
-                    </>
-                )}
-
-                {activeTab === 'vendors' && (
-                    <>
-                        <div className={styles.sectionHeader}>
-                            <h2>Vendor Management</h2>
-                            <div className={styles.statsSummary}>
-                                <span>Total: {vendors.length}</span>
-                                <span className={styles.pending}>Pending: {stats.pendingVendors}</span>
-                                <span className={styles.approved}>Approved: {stats.approvedVendors}</span>
+                        <div className={styles.statsGrid}>
+                            <div className={styles.statCard}><h3>Vendors</h3><p className={styles.statValue}>{vendors.length}</p></div>
+                            <div className={styles.statCard}><h3>Riders</h3><p className={styles.statValue}>{riders.length}</p></div>
+                            <div className={styles.statCard}><h3>Customers</h3><p className={styles.statValue}>{customers.length}</p></div>
+                            <div className={styles.statCard}><h3>Pending</h3><p className={styles.statValue}>{vendors.filter(v => v.status === 'pending').length}</p></div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+                            <div className={styles.section} style={{ marginBottom: '0' }}>
+                                <h3 style={{ margin: '0 0 10px 0' }}>💳 Pending Withdrawals</h3>
+                                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                                    {withdrawalRequests.filter(w => w.status === 'pending').length}
+                                </p>
+                                <button className={styles.primaryBtn} onClick={() => setActiveTab('withdrawals')}>View All</button>
+                            </div>
+                            <div className={styles.section} style={{ marginBottom: '0' }}>
+                                <h3 style={{ margin: '0 0 10px 0' }}>📋 Pending Subscriptions</h3>
+                                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#4a6cf7' }}>
+                                    {subscriptionRequests.filter(s => s.status === 'pending').length}
+                                </p>
+                                <button className={styles.primaryBtn} onClick={() => setActiveTab('subscriptions')}>View All</button>
                             </div>
                         </div>
-                        {renderVendorsTable()}
                     </>
                 )}
 
-                {activeTab === 'announcements' && (
-                    <div className={styles.section}>
-                        <h2>Announcements</h2>
-                        <button className={styles.primaryBtn}>+ Send Announcement</button>
-                        <div className={styles.announcementList}>
-                            <p className={styles.empty}>No announcements yet.</p>
-                        </div>
-                    </div>
-                )}
-
-                {renderToast()}
+                {activeTab === 'vendors' && renderVendors()}
+                {activeTab === 'customers' && renderCustomers()}
+                {activeTab === 'riders' && renderRiders()}
+                {activeTab === 'employees' && renderAdminEmployees()}
+                {activeTab === 'commission' && renderCommissionTypes()}
+                {activeTab === 'coupons' && renderCoupons()}
+                {activeTab === 'announcements' && renderAnnouncements()}
+                {activeTab === 'withdrawals' && renderWithdrawalRequests()}
+                {activeTab === 'subscriptions' && renderSubscriptionRequests()}
             </div>
+
+            {/* MODALS */}
+            {renderAddEmployeeModal()}
+            {renderAddCouponModal()}
+            {renderAddAnnouncementModal()}
+            {renderAddCommissionModal()}
+            {renderVendorDetailModal()}
         </div>
     );
 }
