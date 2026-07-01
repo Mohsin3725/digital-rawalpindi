@@ -24,22 +24,24 @@ export const register = async (req: Request, res: Response) => {
         
         // ✅ Handle file uploads - get filenames if files uploaded
         const files = req.files as any;
-        let businessLicensePath = '';
-        let cnicFrontPath = '';
-        let cnicBackPath = '';
-        
-        if (files) {
-            if (files.businessLicense) {
-                businessLicensePath = files.businessLicense[0].path || files.businessLicense[0].filename;
-            }
-            if (files.cnicFront) {
-                cnicFrontPath = files.cnicFront[0].path || files.cnicFront[0].filename;
-            }
-            if (files.cnicBack) {
-                cnicBackPath = files.cnicBack[0].path || files.cnicBack[0].filename;
-            }
-        }
 
+let businessLicensePath = '';
+let cnicFrontPath = '';
+let cnicBackPath = '';
+
+if (files) {
+    if (files.businessLicense && files.businessLicense.length > 0) {
+        businessLicensePath = `uploads/${files.businessLicense[0].filename}`;
+    }
+
+    if (files.cnicFront && files.cnicFront.length > 0) {
+        cnicFrontPath = `uploads/${files.cnicFront[0].filename}`;
+    }
+
+    if (files.cnicBack && files.cnicBack.length > 0) {
+        cnicBackPath = `uploads/${files.cnicBack[0].filename}`;
+    }
+}
         console.log('📝 Registration attempt:', { name, email, role, shopName });
 
         // ✅ Validation
@@ -61,6 +63,11 @@ export const register = async (req: Request, res: Response) => {
 
         // ✅ Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
+
+        // ✅ Calculate trial dates
+        const trialStartDate = new Date();
+        const trialEndDate = new Date();
+        trialEndDate.setDate(trialEndDate.getDate() + 30); // 30 days trial
 
         // ✅ Create user object
         const userData: any = {
@@ -87,6 +94,9 @@ export const register = async (req: Request, res: Response) => {
             userData.pendingWithdrawals = 0;
             userData.totalOrdersCount = 0;
             userData.hasRequestedExtension = false;
+            // ✅ TRIAL DATES SET KARO
+            userData.trialStartDate = trialStartDate;
+            userData.trialEndDate = trialEndDate;
         }
 
         // ✅ Rider specific fields
@@ -103,6 +113,7 @@ export const register = async (req: Request, res: Response) => {
         await user.save();
 
         console.log('✅ User registered:', user._id);
+        console.log('✅ Trial End Date:', user.trialEndDate);
 
         // ✅ Generate token
         const token = jwt.sign(
@@ -122,7 +133,8 @@ export const register = async (req: Request, res: Response) => {
                 phone: user.phone,
                 role: user.role,
                 approvalStatus: user.approvalStatus,
-                shopName: user.shopName || ''
+                shopName: user.shopName || '',
+                trialEndDate: user.trialEndDate
             }
         });
     } catch (error: any) {
@@ -193,7 +205,8 @@ export const login = async (req: Request, res: Response) => {
                 phone: user.phone,
                 role: user.role,
                 approvalStatus: user.approvalStatus,
-                shopName: user.shopName || ''
+                shopName: user.shopName || '',
+                trialEndDate: user.trialEndDate
             }
         });
     } catch (error: any) {
@@ -227,7 +240,8 @@ export const getMe = async (req: any, res: Response) => {
                 phone: user.phone,
                 role: user.role,
                 approvalStatus: user.approvalStatus,
-                shopName: user.shopName || ''
+                shopName: user.shopName || '',
+                trialEndDate: user.trialEndDate
             }
         });
     } catch (error: any) {

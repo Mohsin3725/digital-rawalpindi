@@ -6,7 +6,7 @@ import axios from 'axios';
 import styles from './admin.module.css';
 
 // ============================================
-// INTERFACES / TYPES
+// INTERFACES
 // ============================================
 interface Vendor {
     id: string;
@@ -33,7 +33,6 @@ interface WithdrawalRequest {
     accountDetails: string;
     status: 'pending' | 'approved' | 'rejected' | 'processed';
     requestedAt: string;
-    createdAt?: string;
 }
 
 interface SubscriptionRequest {
@@ -45,7 +44,6 @@ interface SubscriptionRequest {
     amount: number;
     status: 'pending' | 'approved' | 'rejected';
     requestedAt: string;
-    type?: string;
 }
 
 interface AdminEmployee {
@@ -97,15 +95,11 @@ export default function AdminDashboardPage() {
     const [commissionTypes, setCommissionTypes] = useState<CommissionType[]>([]);
     const [coupons, setCoupons] = useState<Coupon[]>([]);
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-
-    // ============================================
-    // WITHDRAWAL & SUBSCRIPTION REQUESTS
-    // ============================================
     const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequest[]>([]);
     const [subscriptionRequests, setSubscriptionRequests] = useState<SubscriptionRequest[]>([]);
 
     // ============================================
-    // MODALS STATE
+    // MODALS
     // ============================================
     const [showAddCoupon, setShowAddCoupon] = useState(false);
     const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
@@ -113,16 +107,33 @@ export default function AdminDashboardPage() {
     const [showAddCommission, setShowAddCommission] = useState(false);
 
     // ============================================
-    // FORM STATES
+    // FORMS
     // ============================================
     const [employeeForm, setEmployeeForm] = useState({ name: '', email: '', role: 'Vendor Manager' });
     const [couponForm, setCouponForm] = useState({ code: '', type: 'percentage' as const, discount: '', expiry: '' });
     const [announcementForm, setAnnouncementForm] = useState({ title: '', content: '', audience: 'all' as const });
     const [commissionForm, setCommissionForm] = useState({ name: '', type: 'percentage' as const, value: '', description: '' });
 
-    // ✅ SIRF YAHI EK LINE CHANGE HAI
     const API_URL = 'http://localhost:5002';
 
+    // ============================================
+    // ✅ IMAGE URL HELPERS - FIXED (SIRF YAHI CHANGE)
+    // ============================================
+    
+const getImageUrl = (imagePath?: string) => {
+    if (!imagePath) return "";
+
+    if (imagePath.startsWith("http")) {
+        return imagePath;
+    }
+
+    const cleanPath = imagePath
+        .replace(/\\/g, "/")
+        .replace(/^\/+/, "")
+        .replace(/^uploads\/+/, "");
+
+    return `${API_URL}/uploads/${cleanPath}`;
+};
     // ============================================
     // FETCH WITHDRAWALS
     // ============================================
@@ -177,7 +188,6 @@ export default function AdminDashboardPage() {
 
             const headers = { Authorization: `Bearer ${token}` };
 
-            // Fetch all data
             const [vendorsRes, ridersRes, customersRes, employeesRes, commissionsRes, couponsRes, announcementsRes] = await Promise.all([
                 axios.get(`${API_URL}/api/auth/vendors`, { headers }),
                 axios.get(`${API_URL}/api/auth/riders`, { headers }),
@@ -426,27 +436,6 @@ export default function AdminDashboardPage() {
     };
 
     // ============================================
-    // IMAGE URL HELPERS
-    // ============================================
-    const getImageUrl = (path: string | undefined) => {
-        if (!path) return null;
-        if (path.startsWith('http')) return path;
-        let filename = path;
-        if (path.includes('/uploads/')) {
-            filename = path.split('/uploads/').pop() || path;
-        } else if (path.includes('uploads/')) {
-            filename = path.split('uploads/').pop() || path;
-        }
-        if (filename.includes('/')) {
-            filename = filename.split('/').pop() || filename;
-        }
-        if (filename.startsWith('/')) {
-            filename = filename.substring(1);
-        }
-        return `${API_URL}/uploads/${filename}`;
-    };
-
-    // ============================================
     // VENDOR DETAIL MODAL
     // ============================================
     const renderVendorDetailModal = useCallback(() => {
@@ -648,9 +637,9 @@ export default function AdminDashboardPage() {
     }, [showVendorDetail, selectedVendor, updateVendorStatus, API_URL]);
 
     // ============================================
-    // WITHDRAWAL REQUESTS TABLE
+    // RENDER FUNCTIONS
     // ============================================
-    const renderWithdrawalRequests = useCallback(() => (
+    const renderWithdrawalRequests = () => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>💳 Withdrawal Requests</h2>
             <div className={styles.tableContainer}>
@@ -717,12 +706,9 @@ export default function AdminDashboardPage() {
                 </table>
             </div>
         </div>
-    ), [withdrawalRequests, handleWithdrawalStatus]);
+    );
 
-    // ============================================
-    // SUBSCRIPTION REQUESTS TABLE
-    // ============================================
-    const renderSubscriptionRequests = useCallback(() => (
+    const renderSubscriptionRequests = () => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>📋 Subscription Upgrade Requests</h2>
             <div className={styles.tableContainer}>
@@ -792,12 +778,9 @@ export default function AdminDashboardPage() {
                 </table>
             </div>
         </div>
-    ), [subscriptionRequests, handleSubscriptionStatus]);
+    );
 
-    // ============================================
-    // RENDER FUNCTIONS
-    // ============================================
-    const renderVendors = useCallback(() => (
+    const renderVendors = () => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🏪 Vendor Management</h2>
             <div className={styles.tableContainer}>
@@ -865,9 +848,9 @@ export default function AdminDashboardPage() {
                 </table>
             </div>
         </div>
-    ), [vendors, updateVendorStatus]);
+    );
 
-    const renderAdminEmployees = useCallback(() => (
+    const renderAdminEmployees = () => (
         <div className={styles.section}>
             <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>👥 Admin Employees</h2>
@@ -889,9 +872,9 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
         </div>
-    ), [adminEmployees, handleDeleteEmployee]);
+    );
 
-    const renderCommissionTypes = useCallback(() => (
+    const renderCommissionTypes = () => (
         <div className={styles.section}>
             <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>💰 Commission Rules</h2>
@@ -914,9 +897,9 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
         </div>
-    ), [commissionTypes, handleDeleteCommission]);
+    );
 
-    const renderCoupons = useCallback(() => (
+    const renderCoupons = () => (
         <div className={styles.section}>
             <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>🎟️ Coupons</h2>
@@ -938,9 +921,9 @@ export default function AdminDashboardPage() {
                 ))}
             </div>
         </div>
-    ), [coupons, handleDeleteCoupon]);
+    );
 
-    const renderAnnouncements = useCallback(() => (
+    const renderAnnouncements = () => (
         <div className={styles.section}>
             <div className={styles.sectionHeader}>
                 <h2 className={styles.sectionTitle}>📢 Announcements</h2>
@@ -962,9 +945,9 @@ export default function AdminDashboardPage() {
                 </div>
             ))}
         </div>
-    ), [announcements, handleDeleteAnnouncement]);
+    );
 
-    const renderCustomers = useCallback(() => (
+    const renderCustomers = () => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>👥 Customers</h2>
             <div className={styles.tableContainer}>
@@ -988,9 +971,9 @@ export default function AdminDashboardPage() {
                 </table>
             </div>
         </div>
-    ), [customers]);
+    );
 
-    const renderRiders = useCallback(() => (
+    const renderRiders = () => (
         <div className={styles.section}>
             <h2 className={styles.sectionTitle}>🛵 Riders</h2>
             <div className={styles.tableContainer}>
@@ -1014,12 +997,12 @@ export default function AdminDashboardPage() {
                 </table>
             </div>
         </div>
-    ), [riders]);
+    );
 
     // ============================================
     // MODALS FOR ADD
     // ============================================
-    const renderAddEmployeeModal = useCallback(() => {
+    const renderAddEmployeeModal = () => {
         if (!showAddEmployee) return null;
         return (
             <div className={styles.modalOverlay} onClick={() => setShowAddEmployee(false)}>
@@ -1049,9 +1032,9 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
         );
-    }, [showAddEmployee, employeeForm, handleAddEmployeeSubmit]);
+    };
 
-    const renderAddCouponModal = useCallback(() => {
+    const renderAddCouponModal = () => {
         if (!showAddCoupon) return null;
         return (
             <div className={styles.modalOverlay} onClick={() => setShowAddCoupon(false)}>
@@ -1082,9 +1065,9 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
         );
-    }, [showAddCoupon, couponForm, handleAddCouponSubmit]);
+    };
 
-    const renderAddAnnouncementModal = useCallback(() => {
+    const renderAddAnnouncementModal = () => {
         if (!showAddAnnouncement) return null;
         return (
             <div className={styles.modalOverlay} onClick={() => setShowAddAnnouncement(false)}>
@@ -1113,9 +1096,9 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
         );
-    }, [showAddAnnouncement, announcementForm, handleAddAnnouncementSubmit]);
+    };
 
-    const renderAddCommissionModal = useCallback(() => {
+    const renderAddCommissionModal = () => {
         if (!showAddCommission) return null;
         return (
             <div className={styles.modalOverlay} onClick={() => setShowAddCommission(false)}>
@@ -1146,7 +1129,7 @@ export default function AdminDashboardPage() {
                 </div>
             </div>
         );
-    }, [showAddCommission, commissionForm, handleAddCommissionSubmit]);
+    };
 
     // ============================================
     // MAIN RENDER

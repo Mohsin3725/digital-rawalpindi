@@ -9,6 +9,9 @@ import Withdrawal from './Withdrawal.model.js';
 // ============================================
 // 1. DASHBOARD DATA
 // ============================================
+// ============================================
+// 1. DASHBOARD DATA
+// ============================================
 export const getVendorDashboardData = async (req: any, res: Response): Promise<any> => {
     try {
         const vendorId = req.userId || req.user?._id;
@@ -31,13 +34,22 @@ export const getVendorDashboardData = async (req: any, res: Response): Promise<a
             Employee.find({ vendorId }).select('_id employeeName role email')
         ]);
 
+        // ✅ TRIAL DAYS CALCULATE KARO
         let trialDaysRemaining = 0;
         let showTrialWarning = false;
 
         if (vendor.subscriptionPlan === 'free' && vendor.trialEndDate) {
-            const diffTime = new Date(vendor.trialEndDate).getTime() - new Date().getTime();
+            const now = new Date();
+            const trialEnd = new Date(vendor.trialEndDate);
+            const diffTime = trialEnd.getTime() - now.getTime();
             trialDaysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            // ✅ Agar trial end date past me hai toh 0 karo
+            if (trialDaysRemaining < 0) {
+                trialDaysRemaining = 0;
+            }
 
+            // ✅ Agar 3 days ya less bache hain toh warning show karo
             if (trialDaysRemaining <= 3 && trialDaysRemaining > 0) {
                 showTrialWarning = true;
             }
@@ -87,7 +99,6 @@ export const getVendorDashboardData = async (req: any, res: Response): Promise<a
         return res.status(500).json({ success: false, message: error.message });
     }
 };
-
 // ============================================
 // 2. GET ALL PRODUCTS
 // ============================================
@@ -547,6 +558,9 @@ export const getTrialStatus = async (req: any, res: Response): Promise<any> => {
 // ============================================
 // 11. START FREE TRIAL - FIXED
 // ============================================
+// ============================================
+// 11. START FREE TRIAL - FIXED
+// ============================================
 export const startFreeTrial = async (req: any, res: Response): Promise<any> => {
     try {
         const vendorId = req.userId || req.user?._id;
@@ -584,6 +598,7 @@ export const startFreeTrial = async (req: any, res: Response): Promise<any> => {
             });
         }
 
+        // ✅ 30 DAYS TRIAL SET KARO
         const trialStartDate = new Date();
         const trialEndDate = new Date();
         trialEndDate.setDate(trialEndDate.getDate() + 30);
@@ -597,6 +612,7 @@ export const startFreeTrial = async (req: any, res: Response): Promise<any> => {
         });
 
         console.log('✅ [VENDOR] Free trial started successfully');
+        console.log('✅ Trial End Date:', trialEndDate);
 
         return res.status(200).json({
             success: true,
@@ -613,7 +629,6 @@ export const startFreeTrial = async (req: any, res: Response): Promise<any> => {
         });
     }
 };
-
 // ============================================
 // 12. CANCEL SUBSCRIPTION REQUEST - FIXED
 // ============================================
